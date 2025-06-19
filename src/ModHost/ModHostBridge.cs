@@ -85,6 +85,12 @@ public class ModHostBridge
 
         return await tcs.Task;
     }
+	
+    public async Task<string> ExecuteMinecraftCommandAsync(string rawCommand)
+    {
+        string id = Guid.NewGuid().ToString();
+        return await SendRequestAsync(id, "EXECUTE_COMMAND", rawCommand);
+    }
 
     public async Task RegisterCommandAsync(string commandName, Func<string, Task> onExecuted)
     {

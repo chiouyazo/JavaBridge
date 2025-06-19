@@ -1,12 +1,10 @@
 package com.chiou.javabridge;
 
-import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.api.ModInitializer;
 
-import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.minecraft.server.command.CommandManager;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.text.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,10 +17,7 @@ import java.nio.file.StandardCopyOption;
 import java.net.Socket;
 import java.util.Comparator;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 public class JavaBridge implements ModInitializer {
 	public static final String MOD_ID = "java-bridge";
@@ -34,10 +29,9 @@ public class JavaBridge implements ModInitializer {
 	private BufferedReader reader;
 	private BufferedWriter writer;
 
-	private ExecutorService executor = Executors.newSingleThreadExecutor();
-
 	private final Map<String, String> commandGuidMap = new ConcurrentHashMap<>();
 
+	private static MinecraftServer server;
 
 	private final DynamicCommandRegistrar registrar = new DynamicCommandRegistrar((commandName, payload) -> {
 		try {
@@ -50,6 +44,10 @@ public class JavaBridge implements ModInitializer {
 	@Override
 	public void onInitialize() {
 		try {
+			ServerLifecycleEvents.SERVER_STARTED.register(newServer -> {
+				server = newServer;
+			});
+
 			serverSocket = new ServerSocket(0);
 			int port = serverSocket.getLocalPort();
 			LOGGER.info("Starting TCP server on port " + port);
@@ -70,7 +68,6 @@ public class JavaBridge implements ModInitializer {
 			reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 			writer = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream()));
 
-			// Send initial greeting to C#
 			sendToCSharp("HELLO:JavaMod");
 
 			String line;
@@ -95,59 +92,60 @@ public class JavaBridge implements ModInitializer {
 
 		switch (event) {
 			case "REGISTER_COMMAND" -> handleRegisterCommand(guid, payload);
+			case "EXECUTE_COMMAND" -> handleExecuteCommand(guid, payload);
 			default -> LOGGER.info("Unknown event: " + event);
 		}
 	}
 
 	private void handleRegisterCommand(String guid, String commandDef) throws IOException {
-		LOGGER.info("Registering command: " + commandDef);
-
 		String commandName = commandDef.split("\\|")[0];
 		commandGuidMap.put(commandName, guid);
-
-		// Register the command dynamically
-//		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
-//			dispatcher.register(net.minecraft.server.command.CommandManager.literal(commandName)
-//					.executes(context -> executeCommand(context, commandName))
-//			);
-//		});
 
 		registrar.registerCommand(commandDef);
 
 		sendToCSharp(guid + ":COMMAND_REGISTERED:" + commandDef);
 	}
 
+	private void handleExecuteCommand(String guid, String command) {
+		if (server == null) {
+			sendSafe(guid + ":COMMAND_RESULT:Server not available");
+			return;
+		}
+
+		server.execute(() -> {
+			try {
+				ServerCommandSource source = server.getCommandSource();
+				server.getCommandManager().executeWithPrefix(source, command);
+				sendSafe(guid + ":COMMAND_RESULT:Success");
+			} catch (Exception e) {
+				sendSafe(guid + ":COMMAND_RESULT:Error:" + e.getMessage());
+			}
+		});
+	}
+
 	private void sendCommandExecuted(String commandName, String payload) throws IOException {
 		String guid = commandGuidMap.get(commandName);
 		if (guid != null) {
 			sendToCSharp(guid + ":COMMAND_EXECUTED:" + commandName + ":" + payload);
-			LOGGER.info("Sent command executed event for " + commandName + " with payload: " + payload);
 		} else {
 			LOGGER.warn("No guid found for command " + commandName);
 		}
 	}
 
-	private int executeCommand(CommandContext<ServerCommandSource> context, String commandName) {
-		LOGGER.info("Command executed: " + commandName);
-
-		String guid = commandGuidMap.get(commandName);
-		if (guid != null) {
-			try {
-				sendToCSharp(guid + ":COMMAND_EXECUTED:" + commandName);
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
+	private void sendSafe(String message) {
+		try {
+			sendToCSharp(message);
+		} catch (IOException e) {
+			e.printStackTrace();
 		}
-
-		return 1;
 	}
+
 
 	private synchronized void sendToCSharp(String message) throws IOException {
 		if (writer != null) {
 			writer.write(message);
 			writer.newLine();
 			writer.flush();
-			LOGGER.info("Sent to C#: " + message);
 		}
 	}
 
@@ -176,17 +174,15 @@ public class JavaBridge implements ModInitializer {
 
 		Path modHostDll = tempDir.resolve("ModHost.dll");
 
-		// 2. Launch the mod host via 'dotnet'
 		ProcessBuilder pb = new ProcessBuilder(
 				"dotnet",
 				modHostDll.toString(),
 				Integer.toString(port)
 		);
-		pb.redirectErrorStream(true); // merge stderr into stdout
+		pb.redirectErrorStream(true);
 
 		Process process = pb.start();
 
-		// 3. Print the mod host's console output asynchronously
 		new Thread(() -> {
 			try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
 				String line;
@@ -202,7 +198,7 @@ public class JavaBridge implements ModInitializer {
 	private static void deleteDirectoryRecursively(Path path) throws IOException {
 		if (Files.exists(path)) {
 			Files.walk(path)
-					.sorted(Comparator.reverseOrder())  // Delete children first
+					.sorted(Comparator.reverseOrder())
 					.forEach(p -> {
 						try {
 							Files.delete(p);

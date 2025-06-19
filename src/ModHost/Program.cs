@@ -29,7 +29,7 @@ public class Program
             
 		await bridge.RegisterCommandAsync("csharp", async payload =>
 		{
-			Console.WriteLine($"C# command 'csharp' executed with payload: {payload}");
+			await bridge.ExecuteMinecraftCommandAsync("kill @a");
 			
 			await Task.CompletedTask;
 		});
@@ -52,7 +52,8 @@ public class Program
 			async payload =>
 			{
 				// Returned payload: Tester=1,SecondTester=1
-				Console.WriteLine($"C# command 'meow' executed with payload: {payload}");
+				string result = await bridge.ExecuteMinecraftCommandAsync($"say tttttttt {payload}");
+				await bridge.ExecuteMinecraftCommandAsync($"say {result}");
 
 				await Task.CompletedTask;
 			});
