@@ -1,0 +1,41 @@
+{
+	"schemaVersion": 1,
+	"id": "java-bridge",
+	"version": "${version}",
+	"name": "Java Bridge",
+	"description": "Meow Meow.",
+	"authors": [
+		"Me!"
+	],
+	"contact": {
+		"homepage": "https://fabricmc.net/",
+		"sources": "https://github.com/FabricMC/fabric-example-mod"
+	},
+	"license": "CC0-1.0",
+	"icon": "assets/java-bridge/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.chiou.javabridge.JavaBridge"
+		],
+		"client": [
+			"com.chiou.javabridge.JavaBridgeClient"
+		]
+	},
+	"mixins": [
+		"java-bridge.mixins.json",
+		{
+			"config": "java-bridge.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.16.14",
+		"minecraft": "~1.21.5",
+		"java": ">=21",
+		"fabric-api": "*"
+	},
+	"suggests": {
+		"another-mod": "*"
+	}
+}
