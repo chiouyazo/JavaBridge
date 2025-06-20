@@ -21,7 +21,7 @@ public class DynamicCommandRegistrar {
         this.onCommandExecuted = onCommandExecuted;
     }
 
-    public void registerCommand(String commandDefinition) {
+    public void registerCommand(String commandDefinition, BridgeRequirementChecker requirementChecker) {
         String[] parts = commandDefinition.split("\\|", 2);
         String commandName = parts[0];
         List<CommandArg> args = new ArrayList<>();
@@ -39,6 +39,10 @@ public class DynamicCommandRegistrar {
         }
 
         LiteralArgumentBuilder<ServerCommandSource> commandBuilder = CommandManager.literal(commandName);
+
+        if (requirementChecker != null) {
+            commandBuilder.requires(source -> requirementChecker.check(source, commandName));
+        }
 
         buildArguments(commandBuilder, args, 0, commandName);
 

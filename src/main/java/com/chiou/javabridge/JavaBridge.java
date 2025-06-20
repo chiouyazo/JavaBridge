@@ -18,6 +18,7 @@ import java.nio.file.*;
 
 import java.net.Socket;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -39,6 +40,8 @@ public class JavaBridge implements ModInitializer {
 
 	public static final Map<String, ServerCommandSource> PendingCommands = new ConcurrentHashMap<>();
 
+	private final Map<String, String> pendingResponses = new ConcurrentHashMap<>();
+	private final Object responseLock = new Object();
 
 	private static MinecraftServer server;
 
@@ -49,6 +52,8 @@ public class JavaBridge implements ModInitializer {
 			LOGGER.error("Failed to send command executed event", e);
 		}
 	});
+
+	private final BridgeRequirementChecker _requirementChecker = new BridgeRequirementChecker(this);
 
 	@Override
 	public void onInitialize() {
@@ -128,6 +133,12 @@ public class JavaBridge implements ModInitializer {
 			case "EXECUTE_COMMAND" -> handleExecuteCommand(guid, payload);
 			case "COMMAND_FEEDBACK" -> handleCommandFeedback(guid, payload);
 			case "COMMAND_FINALIZE" -> handleCommandFinalize(guid, payload);
+			case "COMMAND_REQUIREMENT_RESPONSE" -> {
+				pendingResponses.put(guid, payload);
+				synchronized (responseLock) {
+					responseLock.notifyAll();
+				}
+			}
 
 			case "QUERY_COMMAND_SOURCE" -> handleCommandSourceQuery(guid, payload);
 			case "HELLO" -> handleNewMod(guid, payload);
@@ -135,18 +146,49 @@ public class JavaBridge implements ModInitializer {
 		}
 	}
 
+	public CompletableFuture<String> waitForResponseAsync(String requestId, long timeoutMs) {
+		CompletableFuture<String> future = new CompletableFuture<>();
+		new Thread(() -> {
+			long deadline = System.currentTimeMillis() + timeoutMs;
+			synchronized (responseLock) {
+				while (!pendingResponses.containsKey(requestId)) {
+					long waitTime = deadline - System.currentTimeMillis();
+					if (waitTime <= 0) break;
+					try {
+						responseLock.wait(waitTime);
+					} catch (InterruptedException e) {
+						Thread.currentThread().interrupt();
+						break;
+					}
+				}
+				String response = pendingResponses.remove(requestId);
+				future.complete(response);
+			}
+		}).start();
+		return future;
+	}
+
 	private void handleCommandSourceQuery(String guid, String payload) throws IOException {
-		String[] split = payload.split(":", 2);
-		String query = split[1];
-		String commandId = split[0];
+		String[] split = payload.split(":", 4);
+		String commandId = split.length > 0 ? split[0] : "";
+		String commandName = split.length > 1 ? split[1] : "";
+		String query = split.length > 2 ? split[2] : "";
+		// TODO: Validate that this is the correct required type inside (e.g. int)
+		String additionalQuery = split.length > 3 ? split[3] : "";
 
 		ServerCommandSource source = PendingCommands.get(commandId);
+		// When a world is loaded, all permissions are checked, thus we need this source temporarily
+		if(source == null) {
+			if(_requirementChecker.CommandSources.containsKey(commandName))
+				source = _requirementChecker.CommandSources.remove(commandName);
+		}
 		if (source != null) {
 			String finalValue = "";
 
 			switch (query) {
 				case "IS_PLAYER" -> finalValue = String.valueOf(source.isExecutedByPlayer());
 				case "NAME" -> finalValue = String.valueOf(source.getName());
+				case "HASPERMISSIONLEVEL" -> finalValue = String.valueOf(source.hasPermissionLevel(Integer.parseInt(additionalQuery)));
 			}
 
 			sendToCSharp(guid + ":COMMAND_SOURCE_RESPONSE:" + commandId + ":" + finalValue);
@@ -186,7 +228,7 @@ public class JavaBridge implements ModInitializer {
 		String commandName = commandDef.split("\\|")[0];
 		commandGuidMap.put(commandName, guid);
 
-		registrar.registerCommand(commandDef);
+		registrar.registerCommand(commandDef, _requirementChecker);
 
 		sendToCSharp(guid + ":COMMAND_REGISTERED:" + commandDef);
 	}
@@ -225,7 +267,7 @@ public class JavaBridge implements ModInitializer {
 		}
 	}
 
-	private synchronized void sendToCSharp(String message) throws IOException {
+	protected synchronized void sendToCSharp(String message) throws IOException {
 		if (_writer != null) {
 			_writer.write(message);
 			_writer.newLine();
