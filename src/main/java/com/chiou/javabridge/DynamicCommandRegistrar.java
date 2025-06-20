@@ -8,16 +8,16 @@ import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
+import org.apache.commons.lang3.function.TriConsumer;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BiConsumer;
+import java.util.UUID;
 
 public class DynamicCommandRegistrar {
+    private final TriConsumer<String, String, String> onCommandExecuted;
 
-    private final BiConsumer<String, String> onCommandExecuted;
-
-    public DynamicCommandRegistrar(BiConsumer<String, String> onCommandExecuted) {
+    public DynamicCommandRegistrar(TriConsumer<String, String, String> onCommandExecuted) {
         this.onCommandExecuted = onCommandExecuted;
     }
 
@@ -51,7 +51,10 @@ public class DynamicCommandRegistrar {
         if (index >= args.size()) {
             builder.executes(ctx -> {
                 String payload = buildArgsPayload(ctx, args);
-                onCommandExecuted.accept(commandName, payload);
+                String guid = UUID.randomUUID().toString();
+                JavaBridge.PendingCommands.put(guid, ctx.getSource());
+                onCommandExecuted.accept(guid, commandName, payload);
+//                ctx.getSource().isExecutedByPlayer()
                 return 1;
             });
             return;
@@ -63,7 +66,9 @@ public class DynamicCommandRegistrar {
         if (arg.optional) {
             builder.executes(ctx -> {
                 String payload = buildArgsPayload(ctx, args.subList(0, index));
-                onCommandExecuted.accept(commandName, payload);
+                String guid = UUID.randomUUID().toString();
+                JavaBridge.PendingCommands.put(guid, ctx.getSource());
+                onCommandExecuted.accept(guid, commandName, payload);
                 return 1;
             });
         }

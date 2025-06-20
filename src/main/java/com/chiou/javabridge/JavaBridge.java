@@ -2,40 +2,49 @@ package com.chiou.javabridge;
 
 import net.fabricmc.api.ModInitializer;
 
+import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.text.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.net.ServerSocket;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.*;
 
 import java.net.Socket;
-import java.util.Comparator;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 public class JavaBridge implements ModInitializer {
 	public static final String MOD_ID = "java-bridge";
 
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-	private ServerSocket serverSocket;
-	private Socket clientSocket;
-	private BufferedReader reader;
-	private BufferedWriter writer;
+	// TODO: Dispose/stop on shutdown?
+	private ServerSocket _serverSocket;
+	private Socket _clientSocket;
+	private BufferedReader _reader;
+	private BufferedWriter _writer;
 
 	private final Map<String, String> commandGuidMap = new ConcurrentHashMap<>();
 
+	private final List<String> _loadedMods = new ArrayList<>();
+	private final List<Process> launchedModProcesses = Collections.synchronizedList(new ArrayList<>());
+
+	public static final Map<String, ServerCommandSource> PendingCommands = new ConcurrentHashMap<>();
+
+
 	private static MinecraftServer server;
 
-	private final DynamicCommandRegistrar registrar = new DynamicCommandRegistrar((commandName, payload) -> {
+	private final DynamicCommandRegistrar registrar = new DynamicCommandRegistrar((guid, commandName, payload) -> {
 		try {
-			sendCommandExecuted(commandName, payload);
+			sendToCSharp(guid + ":COMMAND_EXECUTED:" + commandName + ":" + payload);
 		} catch (IOException e) {
 			LOGGER.error("Failed to send command executed event", e);
 		}
@@ -46,32 +55,56 @@ public class JavaBridge implements ModInitializer {
 		try {
 			ServerLifecycleEvents.SERVER_STARTED.register(newServer -> {
 				server = newServer;
-			});
+            });
 
-			serverSocket = new ServerSocket(0);
-			int port = serverSocket.getLocalPort();
-			LOGGER.info("Starting TCP server on port " + port);
+			_serverSocket = new ServerSocket(63982);
+			LOGGER.info("Starting TCP server on port " + 63982);
 
 			new Thread(this::acceptClient).start();
+			findAndLaunchBridgeStartupFiles(63982);
 
-			launchModHost(port);
+			registerListModsCommand();
+
+			Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+				for (Process p : launchedModProcesses) {
+					if (p.isAlive()) {
+						p.destroy();
+						try {
+							p.waitFor(2, TimeUnit.SECONDS);
+						} catch (InterruptedException ignored) {}
+						if (p.isAlive()) {
+							p.destroyForcibly();
+						}
+					}
+				}
+			}));
+
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 	}
 
+	private void registerListModsCommand() {
+		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
+			dispatcher.register(CommandManager.literal("bridgemods").executes(context -> {
+				context.getSource().sendFeedback(() -> Text.literal(String.join(",", _loadedMods)), false);
+				return 1;
+			}));
+		});
+	}
+
 	private void acceptClient() {
 		try {
-			clientSocket = serverSocket.accept();
-			LOGGER.info("ModHost connected.");
+			_clientSocket = _serverSocket.accept();
+			LOGGER.info("New ModHost connected.");
 
-			reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-			writer = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream()));
+			_reader = new BufferedReader(new InputStreamReader(_clientSocket.getInputStream()));
+			_writer = new BufferedWriter(new OutputStreamWriter(_clientSocket.getOutputStream()));
 
 			sendToCSharp("HELLO:JavaMod");
 
 			String line;
-			while ((line = reader.readLine()) != null) {
+			while ((line = _reader.readLine()) != null) {
 				handleIncoming(line);
 			}
 		} catch (IOException e) {
@@ -93,8 +126,60 @@ public class JavaBridge implements ModInitializer {
 		switch (event) {
 			case "REGISTER_COMMAND" -> handleRegisterCommand(guid, payload);
 			case "EXECUTE_COMMAND" -> handleExecuteCommand(guid, payload);
+			case "COMMAND_FEEDBACK" -> handleCommandFeedback(guid, payload);
+			case "COMMAND_FINALIZE" -> handleCommandFinalize(guid, payload);
+
+			case "QUERY_COMMAND_SOURCE" -> handleCommandSourceQuery(guid, payload);
+			case "HELLO" -> handleNewMod(guid, payload);
 			default -> LOGGER.info("Unknown event: " + event);
 		}
+	}
+
+	private void handleCommandSourceQuery(String guid, String payload) throws IOException {
+		String[] split = payload.split(":", 2);
+		String query = split[1];
+		String commandId = split[0];
+
+		ServerCommandSource source = PendingCommands.get(commandId);
+		if (source != null) {
+			String finalValue = "";
+
+			switch (query) {
+				case "IS_PLAYER" -> finalValue = String.valueOf(source.isExecutedByPlayer());
+				case "NAME" -> finalValue = String.valueOf(source.getName());
+			}
+
+			sendToCSharp(guid + ":COMMAND_SOURCE_RESPONSE:" + commandId + ":" + finalValue);
+		} else {
+			LOGGER.warn("No pending command context for guid: " + commandId);
+			sendToCSharp(guid + ":COMMAND_FEEDBACK:" + commandId + ":Error");
+		}
+	}
+
+	private void handleCommandFinalize(String guid, String commandId) throws IOException {
+		PendingCommands.remove(commandId);
+		sendToCSharp(guid + ":COMMAND_FINALIZE:" + commandId + ":OK");
+	}
+
+	private void handleCommandFeedback(String guid, String payload) throws IOException {
+		String[] split = payload.split(":", 2);
+		String message = split[1];
+		String commandId = split[0];
+
+		ServerCommandSource source = PendingCommands.get(commandId);
+		if (source != null) {
+			source.sendFeedback(() -> Text.literal(message), false);
+
+			sendToCSharp(guid + ":COMMAND_FEEDBACK:" + commandId + ":OK");
+        } else {
+			LOGGER.warn("No pending command context for guid: " + commandId);
+			sendToCSharp(guid + ":COMMAND_FEEDBACK:" + commandId + ":Error");
+		}
+	}
+
+	private void handleNewMod(String guid, String payload) {
+		LOGGER.info("A new mod has been registered: " + payload);
+		_loadedMods.add(payload);
 	}
 
 	private void handleRegisterCommand(String guid, String commandDef) throws IOException {
@@ -140,59 +225,95 @@ public class JavaBridge implements ModInitializer {
 		}
 	}
 
-
 	private synchronized void sendToCSharp(String message) throws IOException {
-		if (writer != null) {
-			writer.write(message);
-			writer.newLine();
-			writer.flush();
+		if (_writer != null) {
+			_writer.write(message);
+			_writer.newLine();
+			_writer.flush();
 		}
 	}
 
-	private void launchModHost(int port) throws IOException {
-		Path tempDir = Files.createTempDirectory("modhost");
-		tempDir.toFile().deleteOnExit();
+	private void findAndLaunchBridgeStartupFiles(int port) {
+		Path modsFolder = getModsFolder();
 
-		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-			try {
-				deleteDirectoryRecursively(tempDir);
-			} catch (IOException e) {
-				e.printStackTrace();
+		// TODO: Filter out mods that failed to laod
+		int loadedMods = 0;
+		try (DirectoryStream<Path> topLevel = Files.newDirectoryStream(modsFolder)) {
+			for (Path path : topLevel) {
+				if (Files.isRegularFile(path) && path.getFileName().toString().equals("bridgeStartup")) {
+					// Run from mods folder
+					launchBridgeStartup(path, modsFolder, port);
+					loadedMods++;
+				} else if (Files.isDirectory(path)) {
+					// Search for any file ending with .bridgeStartup inside the subfolder (only one level deep)
+					try (var stream = Files.list(path)) {
+						for (Path subFile : (Iterable<Path>) stream::iterator) {
+							if (Files.isRegularFile(subFile) && subFile.getFileName().toString().endsWith(".bridgeStartup")) {
+								launchBridgeStartup(subFile, path, port);
+								loadedMods++;
+								break;
+							}
+						}
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+				}
 			}
-		}));
+		} catch (IOException e) {
+			LOGGER.error("Failed to scan mods directory for bridgeStartup files", e);
+		}
 
-		String[] files = { "ModHost.dll", "ModHost.runtimeconfig.json", "ModHost.deps.json" };
+		LOGGER.info("Loaded " + loadedMods + " mods via JavaBridge.");
+	}
 
-		for (String filename : files) {
-			try (InputStream is = getClass().getResourceAsStream("/csharp-host/" + filename)) {
-				if (is == null) throw new IOException("Missing resource " + filename);
-				Path outPath = tempDir.resolve(filename);
-				Files.copy(is, outPath, StandardCopyOption.REPLACE_EXISTING);
-				outPath.toFile().deleteOnExit();
+	public Path getModsFolder() {
+		Path gameDir = FabricLoader.getInstance().getGameDir();
+
+		String gameDirStr = gameDir.toString().toLowerCase();
+		if (gameDirStr.contains("modrinthapp")) {
+			Path modrinthMods = gameDir.resolve("mods");
+			if (Files.isDirectory(modrinthMods)) {
+				return modrinthMods;
 			}
 		}
 
-		Path modHostDll = tempDir.resolve("ModHost.dll");
+		Path modrinthProfilesDir = Path.of(System.getenv("APPDATA"), ".minecraft", "mods");
+		return modrinthProfilesDir;
+	}
 
-		ProcessBuilder pb = new ProcessBuilder(
-				"dotnet",
-				modHostDll.toString(),
-				Integer.toString(port)
-		);
-		pb.redirectErrorStream(true);
-
-		Process process = pb.start();
-
-		new Thread(() -> {
-			try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-				String line;
-				while ((line = reader.readLine()) != null) {
-					LOGGER.info(line);
-				}
-			} catch (IOException e) {
-				e.printStackTrace();
+	private void launchBridgeStartup(Path bridgeStartupFile, Path workingDirectory, int port) {
+		try {
+			List<String> lines = Files.readAllLines(bridgeStartupFile);
+			if (lines.isEmpty()) {
+				LOGGER.warn("Empty bridgeStartup file: " + bridgeStartupFile);
+				return;
 			}
-		}).start();
+
+			List<String> commandParts = new ArrayList<>(List.of(lines.get(0).split(" ")));
+
+			// Append the port as the last argument
+			commandParts.add(Integer.toString(port));
+
+			ProcessBuilder pb = new ProcessBuilder(commandParts);
+			pb.directory(workingDirectory.toFile());
+			pb.redirectErrorStream(true);
+
+			Process process = pb.start();
+			launchedModProcesses.add(process);
+
+			new Thread(() -> {
+				try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+					String line;
+					while ((line = reader.readLine()) != null) {
+						LOGGER.info("[BridgeMod] " + line);
+					}
+				} catch (IOException e) {
+					LOGGER.error("Error reading bridgeStartup output", e);
+				}
+			}).start();
+		} catch (IOException e) {
+			LOGGER.error("Failed to launch bridgeStartup: " + bridgeStartupFile, e);
+		}
 	}
 
 	private static void deleteDirectoryRecursively(Path path) throws IOException {
