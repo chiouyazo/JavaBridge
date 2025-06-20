@@ -47,10 +47,6 @@ processResources {
 	filesMatching("fabric.mod.json") {
 		expand "version": inputs.properties.version
 	}
-
-	from('src/ModHost/bin/Debug/net8.0') {
-		into 'csharp-host'
-	}
 }
 
 tasks.withType(JavaCompile).configureEach {
