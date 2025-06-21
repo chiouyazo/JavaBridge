@@ -25,18 +25,15 @@ public class JavaBridge implements ModInitializer {
 	public void onInitialize() {
 		INSTANCE = this;
 
-		ServerLifecycleEvents.SERVER_STARTED.register(newServer -> {
-			Server = newServer;
-		});
+		ServerLifecycleEvents.SERVER_STARTED.register(newServer -> Server = newServer);
 		registerListModsCommand();
 	}
 
 	private void registerListModsCommand() {
-		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
+		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
 			dispatcher.register(CommandManager.literal("bridgemods").executes(context -> {
-				context.getSource().sendFeedback(() -> Text.literal(String.join(",", "0")), false);
-				return 1;
-			}));
-		});
+            context.getSource().sendFeedback(() -> Text.literal("[" + Communicator.LoadedModsCount + "]" + String.join(",", Communicator.LoadedMods)), false);
+            return 1;
+        })));
 	}
 }

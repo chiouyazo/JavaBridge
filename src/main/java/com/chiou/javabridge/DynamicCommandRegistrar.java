@@ -31,15 +31,5 @@ public class DynamicCommandRegistrar {
             }
         }
         _registrar.register(commandName, args, requirementChecker);
-
-//        LiteralArgumentBuilder<ServerCommandSource> commandBuilder = CommandManager.literal(commandName);
-//
-//        commandBuilder.requires(source -> requirementChecker.check(source, commandName));
-//
-//        _registrar.buildArguments(commandBuilder, args, 0, commandName);
-//
-//        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
-//            dispatcher.register(commandBuilder);
-//        });
     }
 }

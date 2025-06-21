@@ -8,6 +8,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ClientRequirementChecker implements IRequirementChecker {
+    private final String PLATFORM = "CLIENT";
     private final Communicator _comm;
 
     public final Map<String, FabricClientCommandSource> CommandSources = new ConcurrentHashMap<>();
@@ -21,7 +22,7 @@ public class ClientRequirementChecker implements IRequirementChecker {
             CommandSources.put(commandName, (FabricClientCommandSource)source);
             String requestId = UUID.randomUUID().toString();
 
-            _comm.SendToHost(requestId + ":SERVER:COMMAND:COMMAND_REQUIREMENT:" + commandName);
+            _comm.SendToHost(requestId + ":" + PLATFORM + ":COMMAND:COMMAND_REQUIREMENT:" + commandName);
 
             // Wait for response (simple blocking queue or synchronized wait/notify)
             String response = _comm.waitForResponseAsync(requestId, 50000).get();

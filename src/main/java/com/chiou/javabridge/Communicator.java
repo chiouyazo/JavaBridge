@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit;
 public class Communicator {
     private final Logger _logger = JavaBridge.LOGGER;
 
-    private final List<String> _loadedMods = new ArrayList<>();
+    public final List<String> LoadedMods = new ArrayList<>();
     private final List<Process> launchedModProcesses = Collections.synchronizedList(new ArrayList<>());
 
     protected final Map<String, String> PendingResponses = new ConcurrentHashMap<>();
@@ -34,7 +34,7 @@ public class Communicator {
 
     private final CommandHandler _commandHandler;
 
-    public static int LoadedModsCount = 0;
+    public int LoadedModsCount = 0;
 
     public Communicator() {
         try {
@@ -161,7 +161,7 @@ public class Communicator {
 
     private void handleNewMod(String guid, String payload) {
         _logger.info("A new mod has been registered: " + payload);
-        _loadedMods.add(payload);
+        LoadedMods.add(payload);
     }
 
     private Path getModsFolder() {
