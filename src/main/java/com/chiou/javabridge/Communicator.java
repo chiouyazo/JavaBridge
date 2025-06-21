@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -129,17 +130,31 @@ public class Communicator {
             _clientSocket = _serverSocket.accept();
             _logger.info("New ModHost connected.");
 
-            _reader = new BufferedReader(new InputStreamReader(_clientSocket.getInputStream()));
-            _writer = new BufferedWriter(new OutputStreamWriter(_clientSocket.getOutputStream()));
-
-            SendToHost("SERVER:SERVER:HELLO:JavaMod");
-
-            String line;
-            while ((line = _reader.readLine()) != null) {
-                handleIncoming(line);
-            }
+            new Thread(() -> handleClientConnection(_clientSocket)).start();
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+
+    private void handleClientConnection(Socket socket) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+             BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()))) {
+
+            synchronized (this) {
+                _writer = writer;
+            }
+
+            writer.write("SERVER:SERVER:HELLO:JavaMod\n");
+            writer.flush();
+
+            String line;
+            while ((line = reader.readLine()) != null) {
+                handleIncoming(line);
+            }
+        } catch (SocketException e) {
+            _logger.warn("Client disconnected: " + e.getMessage());
+        } catch (IOException e) {
+            _logger.error("IO error while handling client", e);
         }
     }
 

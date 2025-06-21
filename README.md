@@ -15,11 +15,15 @@ Reflect every feature in the [fabric docs](https://docs.fabricmc.net/develop)
 Currently supported features:
 * Commands
   * Command executes
+  * ~~Sub commands~~
   * Command feedback
   * Command requirements (pre check)
-  * Client commands
+  * Client only commands
   * Command arguments
   * ~~Command redirects~~
   * Optional arguments
   * ~~Custom argument types~~
   * ~~Command suggestions~~
+
+* Screens
+  * VERY Basic display/push/delete/list functionality
