@@ -1,24 +1,24 @@
 package com.chiou.javabridge;
 
 import com.chiou.javabridge.Models.IRequirementChecker;
-import net.minecraft.server.command.ServerCommandSource;
+import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class BridgeRequirementChecker implements IRequirementChecker {
+public class ClientRequirementChecker implements IRequirementChecker {
     private final Communicator _comm;
 
-    public final Map<String, ServerCommandSource> CommandSources = new ConcurrentHashMap<>();
+    public final Map<String, FabricClientCommandSource> CommandSources = new ConcurrentHashMap<>();
 
-    public BridgeRequirementChecker(Communicator comm) {
+    public ClientRequirementChecker(Communicator comm) {
         _comm = comm;
     }
 
     public boolean check(Object source, String commandName) {
         try {
-            CommandSources.put(commandName, (ServerCommandSource) source);
+            CommandSources.put(commandName, (FabricClientCommandSource)source);
             String requestId = UUID.randomUUID().toString();
 
             _comm.SendToHost(requestId + ":SERVER:COMMAND:COMMAND_REQUIREMENT:" + commandName);

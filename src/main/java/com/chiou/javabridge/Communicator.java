@@ -1,5 +1,6 @@
 package com.chiou.javabridge;
 
+import com.chiou.javabridge.Models.IClientMessageHandler;
 import net.fabricmc.loader.api.FabricLoader;
 import org.slf4j.Logger;
 
@@ -105,7 +106,7 @@ public class Communicator {
 
         if (platform.equalsIgnoreCase("CLIENT")) {
             if (_clientHandler != null) {
-                _clientHandler.handleClientMessage(guid, platform, event, payload);
+                _clientHandler.handleClientMessage(guid, platform, handler, event, payload);
             } else {
                 _logger.warn("Received CLIENT message but no client handler is registered");
             }
@@ -119,7 +120,7 @@ public class Communicator {
                 if(event.equals("HELLO"))
                     handleNewMod(guid, payload);
             }
-            default -> _logger.info("Unknown event: " + event);
+            default -> _logger.info("Unknown handler: " + handler);
         }
     }
 
