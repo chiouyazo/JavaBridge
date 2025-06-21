@@ -17,12 +17,12 @@ public class ClientRequirementChecker implements IRequirementChecker {
         _comm = comm;
     }
 
-    public boolean check(Object source, String commandName) {
+    public boolean check(String clientId, Object source, String commandName) {
         try {
             CommandSources.put(commandName, (FabricClientCommandSource)source);
             String requestId = UUID.randomUUID().toString();
 
-            _comm.SendToHost(requestId + ":" + PLATFORM + ":COMMAND:COMMAND_REQUIREMENT:" + commandName);
+            _comm.SendToHost(clientId, requestId + ":" + PLATFORM + ":COMMAND:COMMAND_REQUIREMENT:" + commandName);
 
             // Wait for response (simple blocking queue or synchronized wait/notify)
             String response = _comm.waitForResponseAsync(requestId, 50000).get();

@@ -1,5 +1,5 @@
 package com.chiou.javabridge.Models;
 
 public interface IRequirementChecker {
-    public boolean check(Object source, String commandName);
+    public boolean check(String clientId, Object source, String commandName);
 }

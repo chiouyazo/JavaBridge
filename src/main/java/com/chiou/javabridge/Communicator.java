@@ -1,5 +1,6 @@
 package com.chiou.javabridge;
 
+import com.chiou.javabridge.Models.ClientContext;
 import com.chiou.javabridge.Models.IClientMessageHandler;
 import net.fabricmc.loader.api.FabricLoader;
 import org.slf4j.Logger;
@@ -7,7 +8,6 @@ import org.slf4j.Logger;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.SocketException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,6 +19,8 @@ import java.util.concurrent.TimeUnit;
 public class Communicator {
     private final Logger _logger = JavaBridge.LOGGER;
 
+    private final Map<String, ClientContext> _clients = new ConcurrentHashMap<>();
+
     public final List<String> LoadedMods = new ArrayList<>();
     private final List<Process> launchedModProcesses = Collections.synchronizedList(new ArrayList<>());
 
@@ -27,9 +29,6 @@ public class Communicator {
 
     // TODO: Dispose/stop on shutdown?
     private ServerSocket _serverSocket;
-    private Socket _clientSocket;
-    private BufferedReader _reader;
-    private BufferedWriter _writer;
 
     private IClientMessageHandler _clientHandler;
 
@@ -44,7 +43,7 @@ public class Communicator {
 
             _commandHandler = new ServerCommandHandler(this);
 
-            new Thread(this::acceptClient).start();
+            new Thread(this::acceptClientsLoop).start();
 
             findAndLaunchBridgeStartupFiles(63982);
 
@@ -92,7 +91,7 @@ public class Communicator {
         return future;
     }
 
-    private void handleIncoming(String line) throws IOException {
+    private void handleIncoming(String clientId, String line) throws IOException {
         String[] parts = line.split(":", 5);
         if (parts.length < 5) {
             System.err.println("Invalid message: " + line);
@@ -107,7 +106,7 @@ public class Communicator {
 
         if (platform.equalsIgnoreCase("CLIENT")) {
             if (_clientHandler != null) {
-                _clientHandler.handleClientMessage(guid, platform, handler, event, payload);
+                _clientHandler.handleClientMessage(clientId, guid, platform, handler, event, payload);
             } else {
                 _logger.warn("Received CLIENT message but no client handler is registered");
             }
@@ -115,68 +114,76 @@ public class Communicator {
         }
 
         switch (handler) {
-            case "COMMAND" -> _commandHandler.HandleRequest(guid, platform, event, payload);
+            case "COMMAND" -> _commandHandler.HandleRequest(clientId, guid, platform, event, payload);
 
             case "SERVER" -> {
-                if(event.equals("HELLO"))
-                    handleNewMod(guid, payload);
+                if (event.equals("HELLO")) {
+                    handleNewMod(clientId, guid, payload);
+                }
             }
             default -> _logger.info("Unknown handler: " + handler);
         }
     }
 
-    private void acceptClient() {
-        try {
-            _clientSocket = _serverSocket.accept();
-            _logger.info("New ModHost connected.");
-
-            new Thread(() -> handleClientConnection(_clientSocket)).start();
-        } catch (IOException e) {
-            e.printStackTrace();
+    private void acceptClientsLoop() {
+        while (true) {
+            try {
+                Socket socket = _serverSocket.accept();
+                new Thread(() -> HandleClient(socket)).start();
+            } catch (IOException e) {
+                _logger.error("Error accepting client connection", e);
+            }
         }
     }
 
-    private void handleClientConnection(Socket socket) {
+    private void HandleClient(Socket socket) {
+        String clientId = UUID.randomUUID().toString();
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
              BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()))) {
 
-            synchronized (this) {
-                _writer = writer;
-            }
+            _logger.info("New mod client connected: " + clientId);
+            _clients.put(clientId, new ClientContext(clientId, socket, reader, writer));
 
-            writer.write("SERVER:SERVER:HELLO:JavaMod\n");
-            writer.flush();
+            SendToHost(clientId, "SERVER:SERVER:HELLO:" + clientId);
 
             String line;
             while ((line = reader.readLine()) != null) {
-                handleIncoming(line);
+                handleIncoming(clientId, line);
             }
-        } catch (SocketException e) {
-            _logger.warn("Client disconnected: " + e.getMessage());
         } catch (IOException e) {
-            _logger.error("IO error while handling client", e);
+            _logger.warn("Mod client disconnected: " + clientId + " - " + e.getMessage());
+        } finally {
+            _clients.remove(clientId);
+            try {
+                socket.close();
+            } catch (IOException ignored) {}
         }
     }
 
-    protected void SendSafe(String message) {
-        try {
-            SendToHost(message);
-        } catch (IOException e) {
-            e.printStackTrace();
+    public void SendToHost(String clientId, String message) {
+        if(clientId == null) {
+            _logger.error("Could not send message to mod because clientId was null: " + message);
+        }
+        ClientContext ctx = _clients.get(clientId);
+        if (ctx != null) {
+            try {
+                synchronized (ctx.Writer) {
+                    ctx.Writer.write(message);
+                    ctx.Writer.newLine();
+                    ctx.Writer.flush();
+                }
+            } catch (IOException e) {
+                _logger.warn("Failed to send to mod " + clientId + ": " + e.getMessage());
+            }
         }
     }
 
-    protected synchronized void SendToHost(String message) throws IOException {
-        if (_writer != null) {
-            _writer.write(message);
-            _writer.newLine();
-            _writer.flush();
-        }
-    }
-
-    private void handleNewMod(String guid, String payload) {
-        _logger.info("A new mod has been registered: " + payload);
-        LoadedMods.add(payload);
+    private void handleNewMod(String clientId, String guid, String modName) {
+        _logger.info("New mod registered: " + modName + " (clientId=" + clientId + ")");
+        _clients.computeIfPresent(clientId, (id, context) -> {
+            context.modName = modName;
+            return context;
+        });
     }
 
     private Path getModsFolder() {

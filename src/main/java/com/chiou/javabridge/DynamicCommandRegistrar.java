@@ -14,7 +14,7 @@ public class DynamicCommandRegistrar {
         _registrar = registrationProxy;
     }
 
-    public void registerCommand(String commandDefinition, IRequirementChecker requirementChecker) {
+    public void registerCommand(String clientId, String commandDefinition, IRequirementChecker requirementChecker) {
         String[] parts = commandDefinition.split("\\|", 2);
         String commandName = parts[0];
         List<CommandArg> args = new ArrayList<>();
@@ -30,6 +30,6 @@ public class DynamicCommandRegistrar {
                 args.add(new CommandArg(argName, argType, optional));
             }
         }
-        _registrar.register(commandName, args, requirementChecker);
+        _registrar.register(clientId, commandName, args, requirementChecker);
     }
 }

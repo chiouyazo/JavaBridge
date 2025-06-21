@@ -26,9 +26,9 @@ public class ClientCommandRegistrarProxy extends CommandRegistrationProxy {
     }
 
     @Override
-    public void register(String commandName, List<CommandArg> args, IRequirementChecker requirementChecker) {
+    public void register(String clientId, String commandName, List<CommandArg> args, IRequirementChecker requirementChecker) {
         LiteralArgumentBuilder<FabricClientCommandSource> commandBuilder = ClientCommandManager.literal(commandName);
-        commandBuilder.requires(source -> requirementChecker.check(source, commandName));
+        commandBuilder.requires(source -> requirementChecker.check(clientId, source, commandName));
 
         buildArguments(commandBuilder, args, 0, commandName);
 
