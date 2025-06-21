@@ -27,6 +27,8 @@ public class JavaBridge implements ModInitializer {
 
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
+	public static int LoadedModsCount = 0;
+
 	// TODO: Dispose/stop on shutdown?
 	private ServerSocket _serverSocket;
 	private Socket _clientSocket;
@@ -279,20 +281,20 @@ public class JavaBridge implements ModInitializer {
 		Path modsFolder = getModsFolder();
 
 		// TODO: Filter out mods that failed to laod
-		int loadedMods = 0;
+		LoadedModsCount = 0;
 		try (DirectoryStream<Path> topLevel = Files.newDirectoryStream(modsFolder)) {
 			for (Path path : topLevel) {
 				if (Files.isRegularFile(path) && path.getFileName().toString().equals("bridgeStartup")) {
 					// Run from mods folder
 					launchBridgeStartup(path, modsFolder, port);
-					loadedMods++;
+					LoadedModsCount++;
 				} else if (Files.isDirectory(path)) {
 					// Search for any file ending with .bridgeStartup inside the subfolder (only one level deep)
 					try (var stream = Files.list(path)) {
 						for (Path subFile : (Iterable<Path>) stream::iterator) {
 							if (Files.isRegularFile(subFile) && subFile.getFileName().toString().endsWith(".bridgeStartup")) {
 								launchBridgeStartup(subFile, path, port);
-								loadedMods++;
+								LoadedModsCount++;
 								break;
 							}
 						}
@@ -305,7 +307,7 @@ public class JavaBridge implements ModInitializer {
 			LOGGER.error("Failed to scan mods directory for bridgeStartup files", e);
 		}
 
-		LOGGER.info("Loaded " + loadedMods + " mods via JavaBridge.");
+		LOGGER.info("Loaded " + LoadedModsCount + " mods via JavaBridge.");
 	}
 
 	public Path getModsFolder() {
