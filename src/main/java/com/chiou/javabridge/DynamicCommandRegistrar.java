@@ -15,9 +15,13 @@ import java.util.List;
 import java.util.UUID;
 
 public class DynamicCommandRegistrar {
+    private final Boolean _isClient;
     private final TriConsumer<String, String, String> onCommandExecuted;
+    private final CommandHandler _commandHandler;
 
-    public DynamicCommandRegistrar(TriConsumer<String, String, String> onCommandExecuted) {
+    public DynamicCommandRegistrar(Boolean isClient, CommandHandler commandHandler, TriConsumer<String, String, String> onCommandExecuted) {
+        _isClient = isClient;
+        _commandHandler = commandHandler;
         this.onCommandExecuted = onCommandExecuted;
     }
 
@@ -40,9 +44,7 @@ public class DynamicCommandRegistrar {
 
         LiteralArgumentBuilder<ServerCommandSource> commandBuilder = CommandManager.literal(commandName);
 
-        if (requirementChecker != null) {
-            commandBuilder.requires(source -> requirementChecker.check(source, commandName));
-        }
+        commandBuilder.requires(source -> requirementChecker.check(source, commandName) && (!_isClient || source.isExecutedByPlayer()));
 
         buildArguments(commandBuilder, args, 0, commandName);
 
@@ -56,7 +58,7 @@ public class DynamicCommandRegistrar {
             builder.executes(ctx -> {
                 String payload = buildArgsPayload(ctx, args);
                 String guid = UUID.randomUUID().toString();
-                JavaBridge.PendingCommands.put(guid, ctx.getSource());
+                _commandHandler.PendingCommands.put(guid, ctx.getSource());
                 onCommandExecuted.accept(guid, commandName, payload);
 //                ctx.getSource().isExecutedByPlayer()
                 return 1;
@@ -71,7 +73,7 @@ public class DynamicCommandRegistrar {
             builder.executes(ctx -> {
                 String payload = buildArgsPayload(ctx, args.subList(0, index));
                 String guid = UUID.randomUUID().toString();
-                JavaBridge.PendingCommands.put(guid, ctx.getSource());
+                _commandHandler.PendingCommands.put(guid, ctx.getSource());
                 onCommandExecuted.accept(guid, commandName, payload);
                 return 1;
             });
