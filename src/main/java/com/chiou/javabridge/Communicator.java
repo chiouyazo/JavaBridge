@@ -32,7 +32,7 @@ public class Communicator {
 
     private IClientMessageHandler _clientHandler;
 
-    private final CommandHandler _commandHandler;
+    private final ServerCommandHandler _commandHandler;
 
     public int LoadedModsCount = 0;
 
@@ -41,7 +41,7 @@ public class Communicator {
             _logger.info("Starting TCP server on port " + 63982);
             _serverSocket = new ServerSocket(63982);
 
-            _commandHandler = new CommandHandler(this);
+            _commandHandler = new ServerCommandHandler(this);
 
             new Thread(this::acceptClient).start();
 

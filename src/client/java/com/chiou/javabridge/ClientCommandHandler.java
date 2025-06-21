@@ -1,6 +1,6 @@
 package com.chiou.javabridge;
 
-import com.chiou.javabridge.Models.ICommandHandler;
+import com.chiou.javabridge.Models.CommandHandler;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.Text;
@@ -10,8 +10,12 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class ClientCommandHandler implements ICommandHandler {
-    private final String PLATFORM = "CLIENT";
+public class ClientCommandHandler extends CommandHandler {
+    @Override
+    public String GetPlatform() { return "CLIENT"; }
+    @Override
+    public String GetHandler() { return "COMMAND"; }
+
     private final Logger _logger = JavaBridge.LOGGER;
 
     private final Map<String, String> _commandGuidMap = new ConcurrentHashMap<>();
@@ -22,7 +26,7 @@ public class ClientCommandHandler implements ICommandHandler {
 
     private final DynamicCommandRegistrar registrar = new DynamicCommandRegistrar(new ClientCommandRegistrarProxy(this, (guid, commandName, payload) -> {
         try {
-            _communicator.SendToHost(guid + ":" + PLATFORM + ":COMMAND:COMMAND_EXECUTED:" + commandName + ":" + payload);
+            _communicator.SendToHost(AssembleMessage(guid, "COMMAND_EXECUTED", commandName + ":" + payload));
         } catch (IOException e) {
             _logger.error("Failed to send command executed event", e);
         }
@@ -67,12 +71,12 @@ public class ClientCommandHandler implements ICommandHandler {
 
         registrar.registerCommand(commandDef, _requirementChecker);
 
-        _communicator.SendToHost(guid + ":" + PLATFORM + ":COMMAND:COMMAND_REGISTERED:" + commandDef);
+        _communicator.SendToHost(AssembleMessage(guid, "COMMAND_REGISTERED", commandDef));
     }
 
     protected void handleExecuteCommand(String guid, String command) {
         if (JavaBridge.Server == null) {
-            _communicator.SendSafe(guid + ":" + PLATFORM + ":COMMAND:COMMAND_RESULT:CLIENT not available");
+            _communicator.SendSafe(AssembleMessage(guid, "COMMAND_RESULT", "Server not available"));
             return;
         }
 
@@ -80,9 +84,9 @@ public class ClientCommandHandler implements ICommandHandler {
             try {
                 ServerCommandSource source = JavaBridge.Server.getCommandSource();
                 JavaBridge.Server.getCommandManager().executeWithPrefix(source, command);
-                _communicator.SendSafe(guid + ":" + PLATFORM + ":COMMAND:COMMAND_RESULT:Success");
+                _communicator.SendSafe(AssembleMessage(guid, "COMMAND_RESULT", "Success"));
             } catch (Exception e) {
-                _communicator.SendSafe(guid + ":" + PLATFORM + ":COMMAND:COMMAND_RESULT:Error:" + e.getMessage());
+                _communicator.SendSafe(AssembleMessage(guid, "COMMAND_RESULT", "Error:" + e.getMessage()));
             }
         });
     }
@@ -90,7 +94,7 @@ public class ClientCommandHandler implements ICommandHandler {
     private void sendCommandExecuted(String commandName, String payload) throws IOException {
         String guid = _commandGuidMap.get(commandName);
         if (guid != null) {
-            _communicator.SendToHost(guid + ":" + PLATFORM + ":COMMAND:COMMAND_EXECUTED:" + commandName + ":" + payload);
+            _communicator.SendToHost(AssembleMessage(guid, "COMMAND_EXECUTED", commandName + ":" + payload));
         } else {
             _logger.warn("No guid found for command " + commandName);
         }
@@ -105,16 +109,16 @@ public class ClientCommandHandler implements ICommandHandler {
         if (source != null) {
             source.sendFeedback(Text.literal(message));
 
-            _communicator.SendToHost(guid + ":" + PLATFORM + ":COMMAND:COMMAND_FEEDBACK:" + commandId + ":OK");
+            _communicator.SendToHost(AssembleMessage(guid, "COMMAND_FEEDBACK", commandId + ":OK"));
         } else {
             _logger.warn("No pending command context for guid: " + commandId);
-            _communicator.SendToHost(guid + ":" + PLATFORM + ":COMMAND:COMMAND_FEEDBACK:" + commandId + ":Error");
+            _communicator.SendToHost(AssembleMessage(guid, "COMMAND_FEEDBACK", commandId + ":Error"));
         }
     }
 
     private void handleCommandFinalize(String guid, String commandId) throws IOException {
         PendingCommands.remove(commandId);
-        _communicator.SendToHost(guid + ":" + PLATFORM + ":COMMAND:COMMAND_FINALIZE:" + commandId + ":OK");
+        _communicator.SendToHost(AssembleMessage(guid, "COMMAND_FINALIZE", commandId + ":OK"));
     }
 
     private void handleCommandSourceQuery(String guid, String payload) throws IOException {
@@ -140,10 +144,10 @@ public class ClientCommandHandler implements ICommandHandler {
                 case "HASPERMISSIONLEVEL" -> finalValue = String.valueOf(source.hasPermissionLevel(Integer.parseInt(additionalQuery)));
             }
 
-            _communicator.SendToHost(guid + ":" + PLATFORM + ":COMMAND:COMMAND_SOURCE_RESPONSE:" + commandId + ":" + finalValue);
+            _communicator.SendToHost(AssembleMessage(guid, "COMMAND_SOURCE_RESPONSE", commandId + ":" + finalValue));
         } else {
             _logger.warn("No pending command context for guid: " + commandId);
-            _communicator.SendToHost(guid + ":" + PLATFORM + ":COMMAND:COMMAND_FEEDBACK:" + commandId + ":Error");
+            _communicator.SendToHost(AssembleMessage(guid, "COMMAND_FEEDBACK", commandId + ":Error"));
         }
     }
 }

@@ -2,7 +2,7 @@ package com.chiou.javabridge;
 
 import com.chiou.javabridge.Models.CommandArg;
 import com.chiou.javabridge.Models.CommandRegistrationProxy;
-import com.chiou.javabridge.Models.ICommandHandler;
+import com.chiou.javabridge.Models.CommandHandler;
 import com.chiou.javabridge.Models.IRequirementChecker;
 import com.mojang.brigadier.builder.ArgumentBuilder;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
@@ -18,9 +18,9 @@ import java.util.List;
 import java.util.UUID;
 
 public class ClientCommandRegistrarProxy extends CommandRegistrationProxy {
-    private final ICommandHandler _commandHandler;
+    private final CommandHandler _commandHandler;
 
-    public ClientCommandRegistrarProxy(ICommandHandler handler, TriConsumer<String, String, String> onCommandExecuted) {
+    public ClientCommandRegistrarProxy(CommandHandler handler, TriConsumer<String, String, String> onCommandExecuted) {
         super(onCommandExecuted);
         _commandHandler = handler;
     }
