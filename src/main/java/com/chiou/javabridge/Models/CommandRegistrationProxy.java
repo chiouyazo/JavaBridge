@@ -1,9 +1,11 @@
 package com.chiou.javabridge.Models;
 
+import com.chiou.javabridge.JavaBridgeSuggestionProvider;
 import com.mojang.brigadier.arguments.*;
 import org.apache.commons.lang3.function.TriConsumer;
 
 import java.util.List;
+import java.util.Map;
 
 public abstract class CommandRegistrationProxy {
     public CommandRegistrationProxy(TriConsumer<String, String, String> onCommandExecuted) {
@@ -11,6 +13,8 @@ public abstract class CommandRegistrationProxy {
     }
 
     protected TriConsumer<String, String, String> _onCommandExecuted;
+
+    public abstract SuggestionProviderBase GetProvider(String providerId);
 
     public abstract void register(String clientId, CommandNode rootCommand);
 

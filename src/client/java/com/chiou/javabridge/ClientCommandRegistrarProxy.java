@@ -12,16 +12,29 @@ import org.apache.commons.lang3.function.TriConsumer;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 public class ClientCommandRegistrarProxy extends CommandRegistrationProxy {
     private final CommandHandler _commandHandler;
     private final Communicator _communicator;
 
-    public ClientCommandRegistrarProxy(CommandHandler handler, Communicator communicator, TriConsumer<String, String, String> onCommandExecuted) {
+    private final Map<String, SuggestionProviderBase> _suggestionProviders = new ConcurrentHashMap<>();
+    private final Consumer<CommandSourceQuery> _onSuggestionQuery;
+
+    public ClientCommandRegistrarProxy(CommandHandler handler, Communicator communicator, TriConsumer<String, String, String> onCommandExecuted,
+                                       Consumer<CommandSourceQuery> onSuggestionQuery) {
         super(onCommandExecuted);
         _commandHandler = handler;
         this._communicator = communicator;
+        this._onSuggestionQuery = onSuggestionQuery;
+    }
+
+    @Override
+    public SuggestionProviderBase GetProvider(String providerId) {
+        return _suggestionProviders.get(providerId);
     }
 
     @Override
@@ -73,7 +86,10 @@ public class ClientCommandRegistrarProxy extends CommandRegistrationProxy {
         if (arg.suggestionProvider != null) {
             if (arg.suggestionProvider.startsWith("CUSTOM:")) {
                 String providerId = arg.suggestionProvider.substring("CUSTOM:".length());
-                argBuilder.suggests(new ClientSuggestionProvider(providerId, clientId, _communicator));
+                ClientSuggestionProvider suggestionProvider = new ClientSuggestionProvider(providerId, clientId, _communicator, _onSuggestionQuery);
+
+                _suggestionProviders.put(providerId, suggestionProvider);
+                argBuilder.suggests(suggestionProvider);
             }
             else {
                 JavaBridge.LOGGER.warn("Generic suggestion provider " + arg.suggestionProvider + " is not available in client only commands.");

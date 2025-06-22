@@ -14,16 +14,29 @@ import org.apache.commons.lang3.function.TriConsumer;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 public class ServerCommandRegistrarProxy extends CommandRegistrationProxy {
     private final CommandHandler _commandHandler;
     private final Communicator _communicator;
 
-    public ServerCommandRegistrarProxy(CommandHandler handler, Communicator communicator, TriConsumer<String, String, String> onCommandExecuted) {
+    private final Map<String, JavaBridgeSuggestionProvider> _suggestionProviders = new ConcurrentHashMap<>();
+    private final Consumer<CommandSourceQuery> _onSuggestionQuery;
+
+    public ServerCommandRegistrarProxy(CommandHandler handler, Communicator communicator, TriConsumer<String, String, String> onCommandExecuted,
+                                       Consumer<CommandSourceQuery> onSuggestionQuery) {
         super(onCommandExecuted);
         _commandHandler = handler;
         this._communicator = communicator;
+        this._onSuggestionQuery = onSuggestionQuery;
+    }
+
+    @Override
+    public JavaBridgeSuggestionProvider GetProvider(String providerId) {
+        return _suggestionProviders.get(providerId);
     }
 
     @Override
@@ -84,7 +97,10 @@ public class ServerCommandRegistrarProxy extends CommandRegistrationProxy {
             }
             else if (arg.suggestionProvider.startsWith("CUSTOM:")) {
                 String providerId = arg.suggestionProvider.substring("CUSTOM:".length());
-                argBuilder.suggests(new JavaBridgeSuggestionProvider(providerId, clientId, _communicator));
+                JavaBridgeSuggestionProvider suggestionProvider = new JavaBridgeSuggestionProvider(providerId, clientId, _communicator, _onSuggestionQuery);
+
+                _suggestionProviders.put(providerId, suggestionProvider);
+                argBuilder.suggests(suggestionProvider);
             }
         }
 

@@ -1,6 +1,7 @@
 package com.chiou.javabridge;
 
 import com.chiou.javabridge.Models.CommandNode;
+import com.chiou.javabridge.Models.SuggestionProviderBase;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.Text;
 import org.slf4j.Logger;
@@ -23,20 +24,25 @@ public class ServerCommandHandler extends com.chiou.javabridge.Models.CommandHan
 
     private final Map<String, String> _commandGuidMap = new ConcurrentHashMap<>();
     private final Map<String, String> _commandToClientGuid = new ConcurrentHashMap<>();
+
     private final BridgeRequirementChecker _requirementChecker;
     private Communicator _communicator;
 
     private final Map<String, Object> PendingCommands = new ConcurrentHashMap<>();
 
-    private final DynamicCommandRegistrar registrar;
+    private final DynamicCommandRegistrar _registrar;
+    private final ServerCommandSourceQuery _sourceQuery;
 
     public ServerCommandHandler(Communicator communicator) {
         _communicator = communicator;
         _requirementChecker = new BridgeRequirementChecker(_communicator);
+        _sourceQuery = new ServerCommandSourceQuery(_requirementChecker, _communicator);
 
-        registrar = new DynamicCommandRegistrar(new ServerCommandRegistrarProxy(this, _communicator, (guid, commandName, payload) ->
-                _communicator.SendToHost(_commandToClientGuid.get(commandName), guid + ":" + GetPlatform() + ":COMMAND:COMMAND_EXECUTED:" + commandName + "|" + payload)));
+        _registrar = new DynamicCommandRegistrar(new ServerCommandRegistrarProxy(this, _communicator,
+                (guid, commandName, payload) ->
+                _communicator.SendToHost(_commandToClientGuid.get(commandName), guid + ":" + GetPlatform() + ":COMMAND:COMMAND_EXECUTED:" + commandName + "|" + payload),
 
+                _sourceQuery::HandleQuery));
     }
 
     @Override
@@ -61,7 +67,10 @@ public class ServerCommandHandler extends com.chiou.javabridge.Models.CommandHan
                     _communicator.ResponseLock.notifyAll();
                 }
             }
+            case "SUGGESTION_FINALIZE" -> handleSuggestionFinalize(clientId, guid, payload);
+
             case "QUERY_COMMAND_SOURCE" -> handleCommandSourceQuery(clientId, guid, payload);
+            case "QUERY_SUGGESTION_SOURCE" -> handleSuggestionSourceQuery(clientId, guid, payload);
 
             default -> _logger.info("Unknown event: " + event);
         }
@@ -70,13 +79,13 @@ public class ServerCommandHandler extends com.chiou.javabridge.Models.CommandHan
     private void handleRegisterCommand(String clientId, String guid, String commandDef) {
         String commandName = commandDef.split("\\|")[0];
 
-        CommandNode commandNode = registrar.ParseCommandNode(commandDef, _requirementChecker);
+        CommandNode commandNode = _registrar.ParseCommandNode(commandDef, _requirementChecker);
 
         _commandGuidMap.put(commandName, guid);
         _commandToClientGuid.put(commandName, clientId);
         MapCommandsClient(commandNode.subCommands, clientId, commandName);
 
-        registrar.registerCommand(clientId, commandDef, _requirementChecker);
+        _registrar.registerCommand(clientId, commandDef, _requirementChecker);
 
         _communicator.SendToHost(clientId, AssembleMessage(guid, "COMMAND_REGISTERED", commandDef));
     }
@@ -129,33 +138,48 @@ public class ServerCommandHandler extends com.chiou.javabridge.Models.CommandHan
         _communicator.SendToHost(clientId, AssembleMessage(guid, "COMMAND_FINALIZE", commandId + ":OK"));
     }
 
-    private void handleCommandSourceQuery(String clientId, String guid, String payload) throws IOException {
-        String[] split = payload.split(":", 4);
-        String commandId = split.length > 0 ? split[0] : "";
-        String commandName = split.length > 1 ? split[1] : "";
-        String query = split.length > 2 ? split[2] : "";
-        // TODO: Validate that this is the correct required type inside (e.g. int)
-        String additionalQuery = split.length > 3 ? split[3] : "";
-
-        ServerCommandSource source = (ServerCommandSource) PendingCommands.get(commandId);
-        // When a world is loaded, all permissions are checked, thus we need this source temporarily
-        if(source == null) {
-            if(_requirementChecker.CommandSources.containsKey(commandName))
-                source = _requirementChecker.CommandSources.remove(commandName);
+    private void handleSuggestionFinalize(String clientId, String guid, String payload) throws IOException {
+        String[] parts = payload.split(":", 2);
+        if (parts.length < 2) {
+            _logger.warn("Invalid SUGGESTION_SOURCE payload: {}", payload);
+            return;
         }
-        if (source != null) {
-            String finalValue = "";
 
-            switch (query) {
-                case "IS_PLAYER" -> finalValue = String.valueOf(source.isExecutedByPlayer());
-                case "NAME" -> finalValue = String.valueOf(source.getName());
-                case "HASPERMISSIONLEVEL" -> finalValue = String.valueOf(source.hasPermissionLevel(Integer.parseInt(additionalQuery)));
-            }
+        String providerId = parts[0];
 
-            _communicator.SendToHost(clientId, AssembleMessage(guid, "COMMAND_SOURCE_RESPONSE", commandId + ":" + finalValue));
-        } else {
-            _logger.warn("No pending command context for guid: " + commandId);
-            _communicator.SendToHost(clientId, AssembleMessage(guid, "COMMAND_FEEDBACK", commandId + ":Error"));
+        SuggestionProviderBase provider = _registrar.GetProvider(providerId);
+
+        if (provider == null) {
+            _logger.warn("No suggestion provider found for ID: {}", providerId);
+            return;
         }
+
+        provider.FinalizeSuggestion(guid);
+        _communicator.SendToHost(clientId, AssembleMessage(guid, "SUGGESTION_FINALIZE", providerId + ":OK"));
+    }
+
+    private void handleCommandSourceQuery(String clientId, String guid, String payload) {
+        _sourceQuery.HandleQuery(clientId, guid, payload, PendingCommands);
+    }
+
+    private void handleSuggestionSourceQuery(String clientId, String guid, String payload) {
+        String[] parts = payload.split(":", 3);
+        if (parts.length < 3) {
+            _logger.warn("Invalid SUGGESTION_SOURCE payload: {}", payload);
+            return;
+        }
+
+        String providerId = parts[0];
+        String contextId = parts[1];
+        String queryPayload = parts[2];
+
+        SuggestionProviderBase provider = _registrar.GetProvider(providerId);
+
+        if (provider == null) {
+            _logger.warn("No suggestion provider found for ID: {}", providerId);
+            return;
+        }
+
+        provider.HandleQuery(guid, contextId, queryPayload);
     }
 }

@@ -1,9 +1,6 @@
 package com.chiou.javabridge;
 
-import com.chiou.javabridge.Models.CommandArg;
-import com.chiou.javabridge.Models.CommandNode;
-import com.chiou.javabridge.Models.CommandRegistrationProxy;
-import com.chiou.javabridge.Models.IRequirementChecker;
+import com.chiou.javabridge.Models.*;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,6 +18,10 @@ public class DynamicCommandRegistrar {
     }
     public void registerCommand(String clientId, CommandNode node) {
         _registrar.register(clientId, node);
+    }
+
+    public SuggestionProviderBase GetProvider(String providerId) {
+        return _registrar.GetProvider(providerId);
     }
 
     public CommandNode ParseCommandNode(String commandDefinition, IRequirementChecker requirementChecker) {
