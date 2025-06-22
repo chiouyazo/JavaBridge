@@ -27,12 +27,14 @@ public class ClientCommandHandler extends CommandHandler {
 
     private final Map<String, Object> PendingCommands = new ConcurrentHashMap<>();
 
-    private final DynamicCommandRegistrar registrar = new DynamicCommandRegistrar(new ClientCommandRegistrarProxy(this, (guid, commandName, payload) ->
-            _communicator.SendToHost(_commandToClientGuid.get(commandName), AssembleMessage(guid, "COMMAND_EXECUTED", commandName + "|" + payload))));
+    private final DynamicCommandRegistrar _registrar;
 
     public ClientCommandHandler(Communicator communicator) {
         _communicator = communicator;
         _requirementChecker = new ClientRequirementChecker(_communicator);
+        _registrar = new DynamicCommandRegistrar(new ClientCommandRegistrarProxy(this, _communicator, (guid, commandName, payload) ->
+                _communicator.SendToHost(_commandToClientGuid.get(commandName), AssembleMessage(guid, "COMMAND_EXECUTED", commandName + "|" + payload))));
+
     }
 
     @Override
@@ -51,7 +53,7 @@ public class ClientCommandHandler extends CommandHandler {
             case "EXECUTE_COMMAND" -> handleExecuteCommand(clientId, guid, payload);
             case "COMMAND_FEEDBACK" -> handleCommandFeedback(clientId, guid, payload);
             case "COMMAND_FINALIZE" -> handleCommandFinalize(clientId, guid, payload);
-            case "COMMAND_REQUIREMENT_RESPONSE" -> {
+            case "COMMAND_REQUIREMENT_RESPONSE", "SUGGESTION_RESPONSE" -> {
                 _communicator.PendingResponses.put(guid, payload);
                 synchronized (_communicator.ResponseLock) {
                     _communicator.ResponseLock.notifyAll();
@@ -66,13 +68,13 @@ public class ClientCommandHandler extends CommandHandler {
     private void handleRegisterCommand(String clientId, String guid, String commandDef) {
         String commandName = commandDef.split("\\|")[0];
 
-        CommandNode commandNode = registrar.ParseCommandNode(commandDef, _requirementChecker);
+        CommandNode commandNode = _registrar.ParseCommandNode(commandDef, _requirementChecker);
 
         _commandGuidMap.put(commandName, guid);
         _commandToClientGuid.put(commandName, clientId);
         MapCommandsClient(commandNode.subCommands, clientId, commandName);
 
-        registrar.registerCommand(clientId, commandDef, _requirementChecker);
+        _registrar.registerCommand(clientId, commandDef, _requirementChecker);
 
         _communicator.SendToHost(clientId, AssembleMessage(guid, "COMMAND_REGISTERED", commandDef));
     }

@@ -28,12 +28,15 @@ public class ServerCommandHandler extends com.chiou.javabridge.Models.CommandHan
 
     private final Map<String, Object> PendingCommands = new ConcurrentHashMap<>();
 
-    private final DynamicCommandRegistrar registrar = new DynamicCommandRegistrar(new ServerCommandRegistrarProxy(this, (guid, commandName, payload) ->
-            _communicator.SendToHost(_commandToClientGuid.get(commandName), guid + ":" + GetPlatform() + ":COMMAND:COMMAND_EXECUTED:" + commandName + "|" + payload)));
+    private final DynamicCommandRegistrar registrar;
 
     public ServerCommandHandler(Communicator communicator) {
         _communicator = communicator;
         _requirementChecker = new BridgeRequirementChecker(_communicator);
+
+        registrar = new DynamicCommandRegistrar(new ServerCommandRegistrarProxy(this, _communicator, (guid, commandName, payload) ->
+                _communicator.SendToHost(_commandToClientGuid.get(commandName), guid + ":" + GetPlatform() + ":COMMAND:COMMAND_EXECUTED:" + commandName + "|" + payload)));
+
     }
 
     @Override
@@ -52,7 +55,7 @@ public class ServerCommandHandler extends com.chiou.javabridge.Models.CommandHan
             case "EXECUTE_COMMAND" -> handleExecuteCommand(clientId, guid, payload);
             case "COMMAND_FEEDBACK" -> handleCommandFeedback(clientId, guid, payload);
             case "COMMAND_FINALIZE" -> handleCommandFinalize(clientId, guid, payload);
-            case "COMMAND_REQUIREMENT_RESPONSE" -> {
+            case "COMMAND_REQUIREMENT_RESPONSE", "SUGGESTION_RESPONSE" -> {
                 _communicator.PendingResponses.put(guid, payload);
                 synchronized (_communicator.ResponseLock) {
                     _communicator.ResponseLock.notifyAll();

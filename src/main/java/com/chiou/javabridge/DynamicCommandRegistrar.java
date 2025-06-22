@@ -52,10 +52,23 @@ public class DynamicCommandRegistrar {
 
                     String[] argParts = argDef.split("\\|");
                     String[] nameAndType = argParts[0].split(":");
+
                     String argName = nameAndType[0].trim();
                     String argType = nameAndType.length > 1 ? nameAndType[1].trim() : "string";
-                    boolean optional = argParts.length > 1 && "optional".equalsIgnoreCase(argParts[1].trim());
-                    args.add(new CommandArg(argName, argType, optional));
+
+                    boolean optional = false;
+                    String suggestionProvider = null;
+
+                    for (int i = 1; i < argParts.length; i++) {
+                        String opt = argParts[i].trim();
+                        if (opt.equalsIgnoreCase("optional")) {
+                            optional = true;
+                        } else if (opt.toLowerCase().startsWith("suggestion=")) {
+                            suggestionProvider = opt.substring("suggestion=".length()).trim();
+                        }
+                    }
+
+                    args.add(new CommandArg(argName, argType, optional, suggestionProvider));
                 }
             }
 

@@ -8,8 +8,6 @@ import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.server.command.ServerCommandSource;
 import org.apache.commons.lang3.function.TriConsumer;
 
 import java.util.ArrayList;
@@ -18,10 +16,12 @@ import java.util.UUID;
 
 public class ClientCommandRegistrarProxy extends CommandRegistrationProxy {
     private final CommandHandler _commandHandler;
+    private final Communicator _communicator;
 
-    public ClientCommandRegistrarProxy(CommandHandler handler, TriConsumer<String, String, String> onCommandExecuted) {
+    public ClientCommandRegistrarProxy(CommandHandler handler, Communicator communicator, TriConsumer<String, String, String> onCommandExecuted) {
         super(onCommandExecuted);
         _commandHandler = handler;
+        this._communicator = communicator;
     }
 
     @Override
@@ -41,7 +41,7 @@ public class ClientCommandRegistrarProxy extends CommandRegistrationProxy {
         String currentPath = parentPath.isEmpty() ? node.Name : parentPath + ":" + node.Name;
 
         // Build arguments for this node (if any)
-        buildArguments(builder, node.args, 0, currentPath);
+        buildArguments(builder, node.args, 0, currentPath, clientId);
 
         // Recursively add subcommands
         for (CommandNode sub : node.subCommands) {
@@ -55,7 +55,7 @@ public class ClientCommandRegistrarProxy extends CommandRegistrationProxy {
         }
     }
 
-    public void buildArguments(ArgumentBuilder<FabricClientCommandSource, ?> builder, List<CommandArg> args, int index, String fullCommandPath) {
+    public void buildArguments(ArgumentBuilder<FabricClientCommandSource, ?> builder, List<CommandArg> args, int index, String fullCommandPath, String clientId) {
         if (index >= args.size()) {
             builder.executes(ctx -> {
                 String payload = buildArgsPayload(ctx, args);
@@ -70,6 +70,16 @@ public class ClientCommandRegistrarProxy extends CommandRegistrationProxy {
         CommandArg arg = args.get(index);
         RequiredArgumentBuilder<FabricClientCommandSource, ?> argBuilder = ClientCommandManager.argument(arg.name, parseArgumentType(arg.type));
 
+        if (arg.suggestionProvider != null) {
+            if (arg.suggestionProvider.startsWith("CUSTOM:")) {
+                String providerId = arg.suggestionProvider.substring("CUSTOM:".length());
+                argBuilder.suggests(new ClientSuggestionProvider(providerId, clientId, _communicator));
+            }
+            else {
+                JavaBridge.LOGGER.warn("Generic suggestion provider " + arg.suggestionProvider + " is not available in client only commands.");
+            }
+        }
+
         if (arg.optional) {
             builder.executes(ctx -> {
                 String payload = buildArgsPayload(ctx, args.subList(0, index));
@@ -80,7 +90,7 @@ public class ClientCommandRegistrarProxy extends CommandRegistrationProxy {
             });
         }
 
-        buildArguments(argBuilder, args, index + 1, fullCommandPath);
+        buildArguments(argBuilder, args, index + 1, fullCommandPath, clientId);
 
         builder.then(argBuilder);
     }

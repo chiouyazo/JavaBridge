@@ -6,7 +6,9 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.minecraft.command.suggestion.SuggestionProviders;
 import net.minecraft.server.command.CommandManager;
+import net.minecraft.server.command.LootCommand;
 import net.minecraft.server.command.ServerCommandSource;
 import org.apache.commons.lang3.function.TriConsumer;
 
@@ -16,10 +18,12 @@ import java.util.UUID;
 
 public class ServerCommandRegistrarProxy extends CommandRegistrationProxy {
     private final CommandHandler _commandHandler;
+    private final Communicator _communicator;
 
-    public ServerCommandRegistrarProxy(CommandHandler handler, TriConsumer<String, String, String> onCommandExecuted) {
+    public ServerCommandRegistrarProxy(CommandHandler handler, Communicator communicator, TriConsumer<String, String, String> onCommandExecuted) {
         super(onCommandExecuted);
         _commandHandler = handler;
+        this._communicator = communicator;
     }
 
     @Override
@@ -39,7 +43,7 @@ public class ServerCommandRegistrarProxy extends CommandRegistrationProxy {
         String currentPath = parentPath.isEmpty() ? node.Name : parentPath + ":" + node.Name;
 
         // Build arguments for this node (if any)
-        buildArguments(builder, node.args, 0, currentPath);
+        buildArguments(builder, node.args, 0, currentPath, clientId);
 
         // Recursively add subcommands
         for (CommandNode sub : node.subCommands) {
@@ -53,7 +57,7 @@ public class ServerCommandRegistrarProxy extends CommandRegistrationProxy {
         }
     }
 
-    public void buildArguments(ArgumentBuilder<ServerCommandSource, ?> builder, List<CommandArg> args, int index, String fullCommandPath) {
+    public void buildArguments(ArgumentBuilder<ServerCommandSource, ?> builder, List<CommandArg> args, int index, String fullCommandPath, String clientId) {
         if (index >= args.size()) {
             builder.executes(ctx -> {
                 String payload = buildArgsPayload(ctx, args);
@@ -68,6 +72,22 @@ public class ServerCommandRegistrarProxy extends CommandRegistrationProxy {
         CommandArg arg = args.get(index);
         RequiredArgumentBuilder<ServerCommandSource, ?> argBuilder = CommandManager.argument(arg.name, parseArgumentType(arg.type));
 
+        if (arg.suggestionProvider != null) {
+            if (arg.suggestionProvider.equalsIgnoreCase("SUMMONABLE_ENTITIES")) {
+                argBuilder.suggests(SuggestionProviders.SUMMONABLE_ENTITIES);
+            }
+            else if (arg.suggestionProvider.equalsIgnoreCase("AVAILABLE_SOUNDS")) {
+                argBuilder.suggests(SuggestionProviders.AVAILABLE_SOUNDS);
+            }
+            else if (arg.suggestionProvider.equalsIgnoreCase("LOOT_COMMAND")) {
+                argBuilder.suggests(LootCommand.SUGGESTION_PROVIDER);
+            }
+            else if (arg.suggestionProvider.startsWith("CUSTOM:")) {
+                String providerId = arg.suggestionProvider.substring("CUSTOM:".length());
+                argBuilder.suggests(new JavaBridgeSuggestionProvider(providerId, clientId, _communicator));
+            }
+        }
+
         if (arg.optional) {
             builder.executes(ctx -> {
                 String payload = buildArgsPayload(ctx, args.subList(0, index));
@@ -78,7 +98,7 @@ public class ServerCommandRegistrarProxy extends CommandRegistrationProxy {
             });
         }
 
-        buildArguments(argBuilder, args, index + 1, fullCommandPath);
+        buildArguments(argBuilder, args, index + 1, fullCommandPath, clientId);
 
         builder.then(argBuilder);
     }
