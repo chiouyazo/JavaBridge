@@ -3,7 +3,12 @@ package com.chiou.javabridge;
 import com.chiou.javabridge.Models.CommandSourceQuery;
 import com.chiou.javabridge.Models.EventHandler;
 import com.chiou.javabridge.Models.ICommandSourceQuery;
+import com.chiou.javabridge.Models.PlayerMap;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
+import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.text.Text;
 
 import java.util.Map;
 
@@ -63,10 +68,38 @@ public class ClientCommandSourceQuery extends EventHandler implements ICommandSo
                 case "HASPERMISSIONLEVEL" -> finalValue = String.valueOf(clientSource.hasPermissionLevel(Integer.parseInt(additionalQuery)));
             }
 
+            if (query.startsWith("SEND_")) {
+                HandleSend(clientSource, query, additionalQuery);
+                finalValue = "OK";
+            }
+            else if (query.startsWith("PLAYER_")) {
+                return HandlePlayer(clientSource, query, additionalQuery);
+            }
+
             return finalValue;
         } else {
             JavaBridge.LOGGER.warn("No pending command context for command: " + commandName);
             return "Error";
+        }
+    }
+
+    private String HandlePlayer(FabricClientCommandSource clientSource, String query, String additionalQuery) {
+        ClientPlayerEntity player = clientSource.getPlayer();
+
+        if(player == null)
+            return "Error";
+
+        return PlayerMap.GetValue(query, player);
+    }
+
+    private void HandleSend(FabricClientCommandSource source, String query, String additionalQuery) {
+        switch (query) {
+            case "SEND_CHAT" -> {
+                // TODO: Implement
+            }
+            case "SEND_ERROR" -> source.sendError(Text.literal(additionalQuery));
+            // case "SEND_MESSAGE" -> ;
+            case "SEND_FEEDBACK" -> source.sendFeedback(Text.literal(additionalQuery));
         }
     }
 }
