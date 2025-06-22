@@ -20,6 +20,9 @@
 		],
 		"client": [
 			"com.chiou.javabridge.JavaBridgeClient"
+		],
+		"fabric-datagen": [
+			"com.chiou.javabridge.DataGen.JavaBridgeDataGenerator"
 		]
 	},
 	"mixins": [

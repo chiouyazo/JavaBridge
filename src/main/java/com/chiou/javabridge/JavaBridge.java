@@ -20,7 +20,6 @@ public class JavaBridge implements ModInitializer {
 
 	protected static final Communicator Communicator = new Communicator();
 
-
 	@Override
 	public void onInitialize() {
 		INSTANCE = this;

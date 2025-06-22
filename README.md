@@ -15,7 +15,7 @@ Reflect every feature in the [fabric docs](https://docs.fabricmc.net/develop)
 Currently supported features:
 * Commands
   * Command executes
-  * Command context (limited)
+  * Command context (limited (includes player info/context))
   * Sub commands
   * Command feedback
   * Command requirements (pre check)
