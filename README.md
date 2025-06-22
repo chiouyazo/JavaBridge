@@ -15,6 +15,7 @@ Reflect every feature in the [fabric docs](https://docs.fabricmc.net/develop)
 Currently supported features:
 * Commands
   * Command executes
+  * Command context (limited)
   * Sub commands
   * Command feedback
   * Command requirements (pre check)
@@ -24,7 +25,7 @@ Currently supported features:
   * Optional arguments
   * ~~Custom argument types~~
   * Command suggestions
-  * Command context (limited)
+  * ~~Command suggestion context~~
 
 * Screens
   * VERY Basic display/push/delete/list functionality
