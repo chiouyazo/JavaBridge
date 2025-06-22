@@ -25,7 +25,7 @@ Currently supported features:
   * Optional arguments
   * ~~Custom argument types~~
   * Command suggestions
-  * ~~Command suggestion context~~
+  * Command suggestion context
 
 * Screens
   * VERY Basic display/push/delete/list functionality
