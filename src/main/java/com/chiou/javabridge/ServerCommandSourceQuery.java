@@ -28,14 +28,14 @@ public class ServerCommandSourceQuery extends EventHandler implements ICommandSo
 
     @Override
     public void HandleQuery(CommandSourceQuery commandQuery) {
-        String[] split = commandQuery.Payload.split(":", 2);
-        String query = split.length > 0 ? split[1] : "";
+        String[] split = commandQuery.Payload.split(":", 3);
+        String query = split.length > 1 ? split[1] : commandQuery.Payload;
         // TODO: Validate that this is the correct required type inside (e.g. int)
         String additionalQuery = split.length > 2 ? split[2] : "";
 
         Object source = commandQuery.PendingSuggestions.get(commandQuery.ContextId);
 
-        String finalValue = ResolveQuery(commandQuery.ContextId, query, additionalQuery, source);
+        String finalValue = ResolveQuery(split[0], query, additionalQuery, source);
 
         _communicator.SendToHost(commandQuery.ClientId, AssembleMessage(commandQuery.Guid, "COMMAND_SOURCE_RESPONSE", commandQuery.ContextId + ":" + finalValue));
     }
