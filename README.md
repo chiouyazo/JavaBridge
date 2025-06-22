@@ -23,7 +23,8 @@ Currently supported features:
   * ~~Command redirects~~
   * Optional arguments
   * ~~Custom argument types~~
-  * ~~Command suggestions~~
+  * Command suggestions
+  * Command context (limited)
 
 * Screens
   * VERY Basic display/push/delete/list functionality
