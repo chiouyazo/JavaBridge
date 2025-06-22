@@ -29,9 +29,9 @@ public class ServerCommandSourceQuery extends EventHandler implements ICommandSo
     @Override
     public void HandleQuery(CommandSourceQuery commandQuery) {
         String[] split = commandQuery.Payload.split(":", 2);
-        String query = split.length > 0 ? split[0] : "";
+        String query = split.length > 0 ? split[1] : "";
         // TODO: Validate that this is the correct required type inside (e.g. int)
-        String additionalQuery = split.length > 1 ? split[1] : "";
+        String additionalQuery = split.length > 2 ? split[2] : "";
 
         Object source = commandQuery.PendingSuggestions.get(commandQuery.ContextId);
 
@@ -44,9 +44,10 @@ public class ServerCommandSourceQuery extends EventHandler implements ICommandSo
     public void HandleQuery(String clientId, String guid, String payload, Map<String, Object> pendingCommands) {
         String[] split = payload.split(":", 2);
         String contextId = split.length > 0 ? split[0] : "";
+        String newPayload = split.length > 1 ? split[1] : payload;
 
         // contextId could be commandId or suggestionContextId
-        HandleQuery(new CommandSourceQuery(guid, clientId, "", contextId, payload, pendingCommands));
+        HandleQuery(new CommandSourceQuery(guid, clientId, "", contextId, newPayload, pendingCommands));
     }
 
     public String ResolveQuery(String commandName, String query, String additionalQuery, Object source) {

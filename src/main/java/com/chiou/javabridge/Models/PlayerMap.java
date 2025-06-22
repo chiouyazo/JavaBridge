@@ -1,4 +1,4 @@
-﻿package com.chiou.javabridge.Models;
+package com.chiou.javabridge.Models;
 
 import net.minecraft.server.network.ServerPlayerEntity;
 
