@@ -1,6 +1,7 @@
 package com.chiou.javabridge;
 
 import com.chiou.javabridge.Models.CommandArg;
+import com.chiou.javabridge.Models.CommandNode;
 import com.chiou.javabridge.Models.CommandRegistrationProxy;
 import com.chiou.javabridge.Models.IRequirementChecker;
 
@@ -15,21 +16,94 @@ public class DynamicCommandRegistrar {
     }
 
     public void registerCommand(String clientId, String commandDefinition, IRequirementChecker requirementChecker) {
-        String[] parts = commandDefinition.split("\\|", 2);
-        String commandName = parts[0];
-        List<CommandArg> args = new ArrayList<>();
+        CommandNode root = ParseCommandNode(commandDefinition, requirementChecker);
+        _registrar.register(clientId, root);
+    }
+    public void registerCommand(String clientId, CommandNode node) {
+        _registrar.register(clientId, node);
+    }
 
-        if (parts.length > 1 && !parts[1].isEmpty()) {
-            String[] argsSplit = parts[1].split(",");
-            for (String argDef : argsSplit) {
-                String[] argParts = argDef.split("\\|");
-                String[] nameAndType = argParts[0].split(":");
-                String argName = nameAndType[0];
-                String argType = nameAndType.length > 1 ? nameAndType[1] : "string";
-                boolean optional = argParts.length > 1 && "optional".equalsIgnoreCase(argParts[1]);
-                args.add(new CommandArg(argName, argType, optional));
+    public CommandNode ParseCommandNode(String commandDefinition, IRequirementChecker requirementChecker) {
+        int firstPipe = commandDefinition.indexOf('|');
+        String commandName = firstPipe >= 0 ? commandDefinition.substring(0, firstPipe).trim() : commandDefinition.trim();
+        String rest = firstPipe >= 0 ? commandDefinition.substring(firstPipe + 1).trim() : "";
+
+        List<CommandArg> args = new ArrayList<>();
+        List<CommandNode> subCommands = new ArrayList<>();
+
+        if (!rest.isEmpty()) {
+            int subcommandsIndex = rest.indexOf("subcommands[");
+            String argsPart;
+            String subsPart = null;
+
+            if (subcommandsIndex >= 0) {
+                argsPart = rest.substring(0, subcommandsIndex).trim();
+                subsPart = rest.substring(subcommandsIndex).trim();
+            } else {
+                argsPart = rest;
+            }
+
+            // Parse arguments part
+            if (!argsPart.isEmpty()) {
+                String[] argDefs = argsPart.split(",");
+                for (String argDef : argDefs) {
+                    argDef = argDef.trim();
+                    if (argDef.isEmpty()) continue;
+
+                    String[] argParts = argDef.split("\\|");
+                    String[] nameAndType = argParts[0].split(":");
+                    String argName = nameAndType[0].trim();
+                    String argType = nameAndType.length > 1 ? nameAndType[1].trim() : "string";
+                    boolean optional = argParts.length > 1 && "optional".equalsIgnoreCase(argParts[1].trim());
+                    args.add(new CommandArg(argName, argType, optional));
+                }
+            }
+
+            // Parse subcommands part recursively
+            if (subsPart != null && subsPart.startsWith("subcommands[")) {
+                String inner = extractBracketContent(subsPart, "subcommands[");
+                List<String> subCommandDefs = splitTopLevelCommands(inner);
+                for (String subDef : subCommandDefs) {
+                    CommandNode subNode = ParseCommandNode(subDef, requirementChecker);
+                    subCommands.add(subNode);
+                }
             }
         }
-        _registrar.register(clientId, commandName, args, requirementChecker);
+
+        CommandNode node = new CommandNode(commandName, args, requirementChecker);
+        node.subCommands.addAll(subCommands);
+        return node;
+    }
+
+    private String extractBracketContent(String s, String prefix) {
+        int start = s.indexOf(prefix) + prefix.length();
+        int bracketCount = 1;
+        int end = start;
+        while (end < s.length() && bracketCount > 0) {
+            char c = s.charAt(end);
+            if (c == '[') bracketCount++;
+            else if (c == ']') bracketCount--;
+            end++;
+        }
+        return s.substring(start, end - 1);
+    }
+
+    private List<String> splitTopLevelCommands(String s) {
+        List<String> results = new ArrayList<>();
+        int bracketCount = 0;
+        int lastSplit = 0;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '[') bracketCount++;
+            else if (c == ']') bracketCount--;
+            else if (c == ';' && bracketCount == 0) {
+                results.add(s.substring(lastSplit, i).trim());
+                lastSplit = i + 1;
+            }
+        }
+        if (lastSplit < s.length()) {
+            results.add(s.substring(lastSplit).trim());
+        }
+        return results;
     }
 }

@@ -1,12 +1,14 @@
 package com.chiou.javabridge;
 
 import com.chiou.javabridge.Models.CommandHandler;
+import com.chiou.javabridge.Models.CommandNode;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.Text;
 import org.slf4j.Logger;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -26,7 +28,7 @@ public class ClientCommandHandler extends CommandHandler {
     private final Map<String, Object> PendingCommands = new ConcurrentHashMap<>();
 
     private final DynamicCommandRegistrar registrar = new DynamicCommandRegistrar(new ClientCommandRegistrarProxy(this, (guid, commandName, payload) ->
-            _communicator.SendToHost(_commandToClientGuid.get(commandName), AssembleMessage(guid, "COMMAND_EXECUTED", commandName + ":" + payload))));
+            _communicator.SendToHost(_commandToClientGuid.get(commandName), AssembleMessage(guid, "COMMAND_EXECUTED", commandName + "|" + payload))));
 
     public ClientCommandHandler(Communicator communicator) {
         _communicator = communicator;
@@ -61,14 +63,28 @@ public class ClientCommandHandler extends CommandHandler {
         }
     }
 
-    private void handleRegisterCommand(String clientId, String guid, String commandDef) throws IOException {
+    private void handleRegisterCommand(String clientId, String guid, String commandDef) {
         String commandName = commandDef.split("\\|")[0];
+
+        CommandNode commandNode = registrar.ParseCommandNode(commandDef, _requirementChecker);
+
         _commandGuidMap.put(commandName, guid);
         _commandToClientGuid.put(commandName, clientId);
+        MapCommandsClient(commandNode.subCommands, clientId, commandName);
 
         registrar.registerCommand(clientId, commandDef, _requirementChecker);
 
         _communicator.SendToHost(clientId, AssembleMessage(guid, "COMMAND_REGISTERED", commandDef));
+    }
+
+    private void MapCommandsClient(List<CommandNode> subCommands, String clientId, String parentPath) {
+        for (CommandNode command : subCommands) {
+            String localPath = parentPath + ":" + command.Name;
+            _commandToClientGuid.put(localPath, clientId);
+
+            if (!command.subCommands.isEmpty())
+                MapCommandsClient(command.subCommands, clientId, localPath);
+        }
     }
 
     protected void handleExecuteCommand(String clientId, String guid, String command) {

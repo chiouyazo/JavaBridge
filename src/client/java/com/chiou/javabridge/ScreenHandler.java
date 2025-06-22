@@ -43,6 +43,9 @@ public class ScreenHandler extends EventHandler {
     }
 
     private void handleCurrentScreen(String clientId, String guid) throws IOException {
+        if (_currentScreen != null &&  MinecraftClient.getInstance().currentScreen == null)
+            _currentScreen = null;
+
         _communicator.SendToHost(clientId, AssembleMessage(guid, "CURRENTSCREEN", _currentScreen));
     }
 

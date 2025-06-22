@@ -12,8 +12,7 @@ public abstract class CommandRegistrationProxy {
 
     protected TriConsumer<String, String, String> _onCommandExecuted;
 
-    public abstract void register(String clientId, String commandName, List<CommandArg> args,
-                                  IRequirementChecker requirementChecker);
+    public abstract void register(String clientId, CommandNode rootCommand);
 
     protected ArgumentType<?> parseArgumentType(String type) {
         return switch (type.toLowerCase()) {
