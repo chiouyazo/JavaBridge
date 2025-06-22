@@ -58,7 +58,7 @@ public class ScreenHandler extends EventHandler {
         CustomScreen newScreen = new CustomScreen(Text.literal("Meow " + guid), payload);
         _screenGuidMap.put(guid, newScreen);
         _currentScreen = guid;
-        MinecraftClient.getInstance().setScreen(newScreen);
+        MinecraftClient.getInstance().execute(() -> MinecraftClient.getInstance().setScreen(newScreen));
 
         _communicator.SendToHost(clientId, AssembleMessage(guid, "OVERWRITESCREEN", payload));
     }
@@ -68,7 +68,7 @@ public class ScreenHandler extends EventHandler {
         CustomScreen newScreen = new CustomScreen(Text.literal("Meow " + guid), payload);
         _screenGuidMap.put(guid, newScreen);
         _currentScreen = guid;
-        MinecraftClient.getInstance().setScreen(newScreen);
+        MinecraftClient.getInstance().execute(() -> MinecraftClient.getInstance().setScreen(newScreen));
 
         _communicator.SendToHost(clientId, AssembleMessage(guid, "REPLACESCREEN", payload));
     }
@@ -77,7 +77,7 @@ public class ScreenHandler extends EventHandler {
     private void handleReplaceWithExisting(String clientId, String guid, String payload) throws IOException {
         Screen newScreen = _screenGuidMap.get(payload);
         _currentScreen = payload;
-        MinecraftClient.getInstance().setScreen(newScreen);
+        MinecraftClient.getInstance().execute(() -> MinecraftClient.getInstance().setScreen(newScreen));
 
         _communicator.SendToHost(clientId, AssembleMessage(guid, "REPLACEWITHEXISTING", payload));
     }
@@ -85,7 +85,7 @@ public class ScreenHandler extends EventHandler {
     // INTERACTIONID
     private void handleCloseScreen(String clientId, String guid) throws IOException {
         _currentScreen = null;
-        MinecraftClient.getInstance().setScreen(null);
+        MinecraftClient.getInstance().execute(() -> MinecraftClient.getInstance().setScreen(null));
 
         _communicator.SendToHost(clientId, AssembleMessage(guid, "CLOSESCREEN", ""));
     }
@@ -94,7 +94,7 @@ public class ScreenHandler extends EventHandler {
     private void handleDeleteScreen(String clientId, String guid, String payload) throws IOException {
         if(payload.equals(_currentScreen)) {
             _currentScreen = null;
-            MinecraftClient.getInstance().setScreen(null);
+            MinecraftClient.getInstance().execute(() -> MinecraftClient.getInstance().setScreen(null));
         }
 
         _screenGuidMap.remove(payload);
