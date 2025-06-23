@@ -186,23 +186,8 @@ public class Communicator {
         });
     }
 
-    private Path getModsFolder() {
-        Path gameDir = FabricLoader.getInstance().getGameDir();
-
-        String gameDirStr = gameDir.toString().toLowerCase();
-        if (gameDirStr.contains("modrinthapp")) {
-            Path modrinthMods = gameDir.resolve("mods");
-            if (Files.isDirectory(modrinthMods)) {
-                return modrinthMods;
-            }
-        }
-
-        Path modrinthProfilesDir = Path.of(System.getenv("APPDATA"), ".minecraft", "mods");
-        return modrinthProfilesDir;
-    }
-
     private void findAndLaunchBridgeStartupFiles(int port) {
-        Path modsFolder = getModsFolder();
+        Path modsFolder = JavaBridge.getModsFolder();
 
         // TODO: Filter out mods that failed to laod
         LoadedModsCount = 0;

@@ -4,11 +4,19 @@ import net.fabricmc.api.ModInitializer;
 
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
+import net.fabricmc.fabric.api.resource.ResourcePackActivationType;
+import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.item.Item;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 public class JavaBridge implements ModInitializer {
 	public static final String MOD_ID = "java-bridge";
@@ -34,5 +42,35 @@ public class JavaBridge implements ModInitializer {
             context.getSource().sendFeedback(() -> Text.literal("[" + Communicator.LoadedModsCount + "]" + String.join(",", Communicator.LoadedMods)), false);
             return 1;
         })));
+	}
+
+	public static Path getModsFolder() {
+		Path gameDir = FabricLoader.getInstance().getGameDir();
+
+		String gameDirStr = gameDir.toString().toLowerCase();
+		if (gameDirStr.contains("modrinthapp")) {
+			Path modrinthMods = gameDir.resolve("mods");
+			if (Files.isDirectory(modrinthMods)) {
+				return modrinthMods;
+			}
+		}
+
+		Path modrinthProfilesDir = Path.of(System.getenv("APPDATA"), ".minecraft", "mods");
+		return modrinthProfilesDir;
+	}
+
+	public static Path getResourceFolder() {
+		Path gameDir = FabricLoader.getInstance().getGameDir();
+
+		String gameDirStr = gameDir.toString().toLowerCase();
+		if (gameDirStr.contains("modrinthapp")) {
+			Path modrinthMods = gameDir.resolve("resourcepacks");
+			if (Files.isDirectory(modrinthMods)) {
+				return modrinthMods;
+			}
+		}
+
+		Path modrinthProfilesDir = Path.of(System.getenv("APPDATA"), ".minecraft", "resourcepacks");
+		return modrinthProfilesDir;
 	}
 }
