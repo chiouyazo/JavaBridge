@@ -2,7 +2,7 @@ package com.chiou.javabridge.Models;
 
 import net.minecraft.server.network.ServerPlayerEntity;
 
-public class PlayerMap {
+public class ServerPlayerMap {
     public static String GetValue(String query, ServerPlayerEntity player) {
         switch (query) {
             case "PLAYER_AGE" -> {

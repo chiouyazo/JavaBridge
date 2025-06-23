@@ -3,11 +3,9 @@ package com.chiou.javabridge;
 import com.chiou.javabridge.Models.CommandSourceQuery;
 import com.chiou.javabridge.Models.EventHandler;
 import com.chiou.javabridge.Models.ICommandSourceQuery;
-import com.chiou.javabridge.Models.PlayerMap;
+import com.chiou.javabridge.Models.ClientPlayerMap;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 
 import java.util.Map;
@@ -89,7 +87,7 @@ public class ClientCommandSourceQuery extends EventHandler implements ICommandSo
         if(player == null)
             return "Error";
 
-        return PlayerMap.GetValue(query, player);
+        return ClientPlayerMap.GetValue(query, player);
     }
 
     private void HandleSend(FabricClientCommandSource source, String query, String additionalQuery) {

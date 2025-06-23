@@ -3,7 +3,7 @@ package com.chiou.javabridge;
 import com.chiou.javabridge.Models.CommandSourceQuery;
 import com.chiou.javabridge.Models.EventHandler;
 import com.chiou.javabridge.Models.ICommandSourceQuery;
-import com.chiou.javabridge.Models.PlayerMap;
+import com.chiou.javabridge.Models.ServerPlayerMap;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
@@ -107,7 +107,7 @@ public class ServerCommandSourceQuery extends EventHandler implements ICommandSo
         if(player == null)
             return "Error";
 
-        return PlayerMap.GetValue(query, player);
+        return ServerPlayerMap.GetValue(query, player);
         // Not there
 //        player.capeX;
 //        player.capeY;
