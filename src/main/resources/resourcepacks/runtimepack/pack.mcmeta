@@ -1,6 +1,6 @@
 ﻿{
   "pack": {
-    "pack_format": 26,
-    "description": "My dynamic (but pre-bundled) pack"
+    "pack_format": 55,
+    "description": "Dynamic resource pack"
   }
 }

@@ -15,7 +15,7 @@ public class ClientBridgeHandler implements IClientMessageHandler {
 
     public ClientBridgeHandler()
     {
-        _communicator = JavaBridge.Communicator;
+        _communicator = JavaBridge.INSTANCE.Communicator;
         _commandHandler = new ClientCommandHandler(_communicator);
         _screenHandler = new ScreenHandler(_communicator);
     }

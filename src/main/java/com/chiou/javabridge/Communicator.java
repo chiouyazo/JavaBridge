@@ -15,6 +15,7 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 public class Communicator {
     private final Logger _logger = JavaBridge.LOGGER;
@@ -33,15 +34,21 @@ public class Communicator {
     private IClientMessageHandler _clientHandler;
 
     private final ServerCommandHandler _commandHandler;
+    private final ServerItemHandler _itemHandler;
+
+    private final Consumer<Path> _onNewModEvent;
 
     public int LoadedModsCount = 0;
 
-    public Communicator() {
+    public Communicator(Consumer<Path> onNewModEvent) {
+        _onNewModEvent = onNewModEvent;
+
         try {
             _logger.info("Starting TCP server on port " + 63982);
             _serverSocket = new ServerSocket(63982);
 
             _commandHandler = new ServerCommandHandler(this);
+            _itemHandler = new ServerItemHandler(this);
 
             new Thread(this::acceptClientsLoop).start();
 
@@ -115,6 +122,7 @@ public class Communicator {
 
         switch (handler) {
             case "COMMAND" -> _commandHandler.HandleRequest(clientId, guid, platform, event, payload);
+            case "ITEM" -> _itemHandler.HandleRequest(clientId, guid, platform, event, payload);
 
             case "SERVER" -> {
                 if (event.equals("HELLO")) {
@@ -186,7 +194,7 @@ public class Communicator {
         });
     }
 
-    private void findAndLaunchBridgeStartupFiles(int port) {
+    private void findAndLaunchBridgeStartupFiles(int port) throws IOException {
         Path modsFolder = JavaBridge.getModsFolder();
 
         // TODO: Filter out mods that failed to laod
@@ -221,6 +229,9 @@ public class Communicator {
 
     private void launchBridgeStartup(Path bridgeStartupFile, Path workingDirectory, int port) {
         try {
+            String modId = bridgeStartupFile.getFileName().toString().replace(".bridgeStartup", "");
+            _onNewModEvent.accept(Path.of(workingDirectory.toString(), modId + "_assets"));
+
             List<String> lines = Files.readAllLines(bridgeStartupFile);
             if (lines.isEmpty()) {
                 _logger.warn("Empty bridgeStartup file: " + bridgeStartupFile);
