@@ -14,6 +14,7 @@ import net.minecraft.server.command.CommandManager;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import org.apache.commons.io.FileUtils;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,6 +26,7 @@ import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 
 public class JavaBridge implements ModInitializer {
 	public static final String MOD_ID = "java-bridge";
@@ -34,69 +36,13 @@ public class JavaBridge implements ModInitializer {
 
 	public static MinecraftServer Server;
 
-	private Path _dynamicPack;
-    {
-        try {
-            _dynamicPack = JavaBridge.getResourceFolder().resolve("javaBridgeDynamicPack");
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    protected final Communicator Communicator = new Communicator(this::CopyModAssets);
-
-    private void CopyModAssets(Path assetsDir) {
-        try {
-            copyDirectory(Path.of(assetsDir.toString(), "assets", "minecraft", "textures", "item"), Path.of(_dynamicPack.toString(), "assets", "minecraft", "textures", "item"));
-        } catch (IOException e) {
-			JavaBridge.LOGGER.error("Could not copy mod assets.", e);
-        }
-    }
-
-	public void copyDirectory(Path sourceDir, Path targetDir) throws IOException {
-		Files.walkFileTree(sourceDir, new SimpleFileVisitor<Path>() {
-			@Override
-			public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-				Path targetPath = targetDir.resolve(sourceDir.relativize(dir));
-				if (!Files.exists(targetPath)) {
-					Files.createDirectories(targetPath);
-				}
-				return FileVisitResult.CONTINUE;
-			}
-
-			@Override
-			public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-				Path targetPath = targetDir.resolve(sourceDir.relativize(file));
-				Files.copy(file, targetPath, StandardCopyOption.REPLACE_EXISTING);
-				return FileVisitResult.CONTINUE;
-			}
-		});
-	}
+    protected Communicator Communicator = new Communicator();
 
 	@Override
 	public void onInitialize() {
 		INSTANCE = this;
 
 		try {
-			Path resourcesFolder = JavaBridge.getResourceFolder();
-			if (!Files.exists(resourcesFolder))
-				Files.createDirectories(resourcesFolder);
-
-			_dynamicPack = resourcesFolder.resolve("javaBridgeDynamicPack");
-
-			FileUtils.deleteDirectory(new File(_dynamicPack.toUri()));
-			Files.createDirectories(_dynamicPack);
-
-			try (InputStream inputStream = getClass().getResourceAsStream("/resourcepacks/runtimepack/pack.mcmeta")) {
-				if (inputStream == null) {
-					LOGGER.error("pack.mcmeta not found in JAR");
-				} else {
-					Path targetFile = _dynamicPack.resolve("pack.mcmeta");
-					Files.copy(inputStream, targetFile, StandardCopyOption.REPLACE_EXISTING);
-				}
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
 
 			ServerLifecycleEvents.SERVER_STARTED.register(newServer -> Server = newServer);
 			ServerLifecycleEvents.SERVER_STARTED.register(JavaBridge::RegisterServerPacks);
@@ -123,7 +69,8 @@ public class JavaBridge implements ModInitializer {
 			ModNioResourcePack dataPack = ResourcePackHandler.CreatePack(id.toString(), modContainer, dynamicPath, ResourceType.SERVER_DATA, ResourcePackActivationType.ALWAYS_ENABLED, modBundled);
 
 			if (dataPack == null) {
-				JavaBridge.LOGGER.error("Failed to create resource packs.");
+				JavaBridge.LOGGER.error("Failed to create resource packs for server.");
+				return;
 			}
 
 			String packId = dynamicPath != null && modBundled ? id + "_" + dynamicPath : id.toString();

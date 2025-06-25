@@ -2,7 +2,7 @@ package com.chiou.javabridge;
 
 import com.chiou.javabridge.Models.ClientContext;
 import com.chiou.javabridge.Models.IClientMessageHandler;
-import net.fabricmc.loader.api.FabricLoader;
+import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 
 import java.io.*;
@@ -11,11 +11,13 @@ import java.net.Socket;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 public class Communicator {
     private final Logger _logger = JavaBridge.LOGGER;
@@ -27,23 +29,45 @@ public class Communicator {
 
     protected final Map<String, String> PendingResponses = new ConcurrentHashMap<>();
     protected final Object ResponseLock = new Object();
+    private Path _dynamicPack;
+    public Runnable FinalizedModLoadingTextureCallback;
 
     // TODO: Dispose/stop on shutdown?
     private ServerSocket _serverSocket;
 
     private IClientMessageHandler _clientHandler;
 
-    private final ServerCommandHandler _commandHandler;
-    private final ServerItemHandler _itemHandler;
+    private ServerCommandHandler _commandHandler;
+    public ServerItemHandler _itemHandler;
 
-    private final Consumer<Path> _onNewModEvent;
+    private Consumer<Path> _onNewModEvent;
 
     public int LoadedModsCount = 0;
 
-    public Communicator(Consumer<Path> onNewModEvent) {
-        _onNewModEvent = onNewModEvent;
-
+    public Communicator() {
         try {
+            _onNewModEvent = this::CopyModAssets;
+
+            Path resourcesFolder = JavaBridge.getResourceFolder();
+            if (!Files.exists(resourcesFolder))
+                Files.createDirectories(resourcesFolder);
+
+            _dynamicPack = resourcesFolder.resolve("javaBridgeDynamicPack");
+
+            FileUtils.deleteDirectory(new File(_dynamicPack.toUri()));
+            Files.createDirectories(_dynamicPack);
+
+            try (InputStream inputStream = getClass().getResourceAsStream("/resourcepacks/runtimepack/pack.mcmeta")) {
+                if (inputStream == null) {
+                    JavaBridge.LOGGER.error("pack.mcmeta not found in JAR");
+                } else {
+                    Path targetFile = _dynamicPack.resolve("pack.mcmeta");
+                    Files.copy(inputStream, targetFile, StandardCopyOption.REPLACE_EXISTING);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
             _logger.info("Starting TCP server on port " + 63982);
             _serverSocket = new ServerSocket(63982);
 
@@ -67,8 +91,48 @@ public class Communicator {
                     }
                 }
             }));
+        }
+        catch (Exception ex) {
+
+        }
+    }
+
+    private void CopyModAssets(Path assetsDir) {
+        try {
+            copyFolder(Path.of(assetsDir.toString(), "assets", "minecraft", "blockstates"), Path.of(_dynamicPack.toString(), "assets", "minecraft", "blockstates"));
+            copyFolder(Path.of(assetsDir.toString(), "assets", "minecraft", "equipment"), Path.of(_dynamicPack.toString(), "assets", "minecraft", "equipment"));
+            copyFolder(Path.of(assetsDir.toString(), "assets", "minecraft", "font"), Path.of(_dynamicPack.toString(), "assets", "minecraft", "font"));
+            copyFolder(Path.of(assetsDir.toString(), "assets", "minecraft", "items"), Path.of(_dynamicPack.toString(), "assets", "minecraft", "items"));
+            // TODO: Merge lang files
+			copyFolder(Path.of(assetsDir.toString(), "assets", "minecraft", "lang"), Path.of(_dynamicPack.toString(), "assets", "minecraft", "lang"));
+            copyFolder(Path.of(assetsDir.toString(), "assets", "minecraft", "models"), Path.of(_dynamicPack.toString(), "assets", "minecraft", "models"));
+            copyFolder(Path.of(assetsDir.toString(), "assets", "minecraft", "particles"), Path.of(_dynamicPack.toString(), "assets", "minecraft", "particles"));
+            copyFolder(Path.of(assetsDir.toString(), "assets", "minecraft", "post_effect"), Path.of(_dynamicPack.toString(), "assets", "minecraft", "post_effect"));
+            copyFolder(Path.of(assetsDir.toString(), "assets", "minecraft", "shaders"), Path.of(_dynamicPack.toString(), "assets", "minecraft", "shaders"));
+            copyFolder(Path.of(assetsDir.toString(), "assets", "minecraft", "texts"), Path.of(_dynamicPack.toString(), "assets", "minecraft", "texts"));
+            copyFolder(Path.of(assetsDir.toString(), "assets", "minecraft", "textures"), Path.of(_dynamicPack.toString(), "assets", "minecraft", "textures"));
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            JavaBridge.LOGGER.error("Could not copy mod assets.", e);
+        }
+    }
+
+    public  void copyFolder(Path src, Path dest) throws IOException {
+        if (!Files.exists(src))
+            return;
+
+        if (!Files.exists(dest))
+            Files.createDirectories(dest);
+
+        try (Stream<Path> stream = Files.walk(src)) {
+            stream.forEach(source -> copy(source, dest.resolve(src.relativize(source))));
+        }
+    }
+
+    private void copy(Path source, Path dest) {
+        try {
+            Files.copy(source, dest, StandardCopyOption.REPLACE_EXISTING);
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage(), e);
         }
     }
 
@@ -223,6 +287,9 @@ public class Communicator {
         } catch (IOException e) {
             _logger.error("Failed to scan mods directory for bridgeStartup files", e);
         }
+        finally {
+            FinalizedModLoadingTextureCallback.run();
+        }
 
         _logger.info("Loaded " + LoadedModsCount + " mods via JavaBridge.");
     }
@@ -231,7 +298,6 @@ public class Communicator {
         try {
             String modId = bridgeStartupFile.getFileName().toString().replace(".bridgeStartup", "");
             _onNewModEvent.accept(Path.of(workingDirectory.toString(), modId + "_assets"));
-
             List<String> lines = Files.readAllLines(bridgeStartupFile);
             if (lines.isEmpty()) {
                 _logger.warn("Empty bridgeStartup file: " + bridgeStartupFile);
