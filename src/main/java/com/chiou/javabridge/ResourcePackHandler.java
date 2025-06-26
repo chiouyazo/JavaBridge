@@ -23,6 +23,13 @@ import java.util.Set;
 import static java.nio.file.Files.exists;
 
 public class ResourcePackHandler {
+    public static @NotNull ResourcePackProvider CreateResourcePackProvider(ModNioResourcePack resourcePack, String packId, Text displayName, ModContainer modContainer, ResourceType type) {
+        ResourcePackProfile.PackFactory resourceFactory = ResourcePackHandler.CreateFactory(resourcePack);
+        ResourcePackInfo metadata = ResourcePackHandler.CreatePackInfo(packId, displayName, modContainer);
+        ResourcePackProvider resourceProvider = ResourcePackHandler.CreateProvider(metadata, resourceFactory, type);
+        return resourceProvider;
+    }
+
     public static @NotNull ResourcePackProvider CreateProvider(ResourcePackInfo metadata, ResourcePackProfile.PackFactory resourceFactory, ResourceType type) {
         ResourcePackProvider resourceProvider = consumer -> {
             try {
@@ -105,7 +112,7 @@ public class ResourcePackHandler {
 
             if (paths.isEmpty()) return null;
 
-            String packId = subPath != null && modBundled ? "dynamic_" + id + "_" + subPath : "dynamic_" + id;
+            String packId = id;
             Text displayName = subPath == null
                     ? Text.translatable("pack.name.fabricMod", mod.getMetadata().getName())
                     : Text.translatable("pack.name.fabricMod.subPack", mod.getMetadata().getName(), Text.translatable("resourcePack." + subPath + ".name"));

@@ -45,7 +45,7 @@ public class JavaBridge implements ModInitializer {
 		try {
 
 			ServerLifecycleEvents.SERVER_STARTED.register(newServer -> Server = newServer);
-			ServerLifecycleEvents.SERVER_STARTED.register(JavaBridge::RegisterServerPacks);
+//			ServerLifecycleEvents.SERVER_STARTED.register(JavaBridge::RegisterServerPacks);
 			registerListModsCommand();
 		} catch (Exception e) {
 			LOGGER.error("Something went wrong in the initialization.", e);
@@ -59,7 +59,7 @@ public class JavaBridge implements ModInitializer {
 			ModContainer modContainer = FabricLoader.getInstance().getModContainer(JavaBridge.MOD_ID).get();
 			String dynamicPath = Path.of(JavaBridge.getResourceFolder().toString(), "javaBridgeDynamicPack").toString();
 
-			Identifier id = Identifier.of(JavaBridge.MOD_ID, "dynamic_pack_id");
+			Identifier id = Identifier.of("java-bridge");
 			Text displayName = Text.literal(id.getNamespace() + "/" + id.getPath());
 
 			List<Path> paths = modContainer.getRootPaths();
@@ -73,7 +73,7 @@ public class JavaBridge implements ModInitializer {
 				return;
 			}
 
-			String packId = dynamicPath != null && modBundled ? id + "_" + dynamicPath : id.toString();
+			String packId = id.toString();
 
 
 			ResourcePackProfile.PackFactory dataFactory = ResourcePackHandler.CreateFactory(dataPack);

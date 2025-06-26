@@ -4,6 +4,7 @@ import com.chiou.javabridge.Models.CommandHandler;
 import com.chiou.javabridge.Models.CommandNode;
 import com.chiou.javabridge.Models.EventHandler;
 import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
+import net.minecraft.component.type.FoodComponent;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemGroups;
 import net.minecraft.registry.Registries;
@@ -13,6 +14,7 @@ import net.minecraft.registry.RegistryKeys;
 import net.minecraft.util.Identifier;
 import org.slf4j.Logger;
 
+import java.util.Set;
 import java.util.function.Function;
 
 public class ServerItemHandler extends EventHandler {
@@ -30,11 +32,12 @@ public class ServerItemHandler extends EventHandler {
 
     public ServerItemHandler(Communicator communicator) {
         this._communicator = communicator;
+        initialize();
     }
 
     public Item register(String name, Function<Item.Settings, Item> itemFactory, Item.Settings settings) {
         // Create the item key.
-        RegistryKey<Item> itemKey = RegistryKey.of(RegistryKeys.ITEM, Identifier.of(JavaBridge.MOD_ID, name));
+        RegistryKey<Item> itemKey = RegistryKey.of(RegistryKeys.ITEM, Identifier.of("java-bridge", name));
 
         // Create the item instance.
         Item item = itemFactory.apply(settings.registryKey(itemKey));
@@ -46,9 +49,14 @@ public class ServerItemHandler extends EventHandler {
     }
 
     public void initialize() {
-        SUSPICIOUS_SUBSTANCE = register("suspicious_substance", Item::new, new Item.Settings());
-        ItemGroupEvents.modifyEntriesEvent(ItemGroups.INGREDIENTS)
-                .register((itemGroup) -> itemGroup.add(SUSPICIOUS_SUBSTANCE));
+        try {
+            SUSPICIOUS_SUBSTANCE = register("suspicious_substance", Item::new, new Item.Settings());
+            ItemGroupEvents.modifyEntriesEvent(ItemGroups.INGREDIENTS)
+                    .register((itemGroup) -> itemGroup.add(SUSPICIOUS_SUBSTANCE));
+        }
+        catch (Exception e) {
+            JavaBridge.LOGGER.error("Error when init serveritemhandler.", e);
+        }
     }
 
     public void HandleRequest(String clientId, String guid, String platform, String event, String payload) {
