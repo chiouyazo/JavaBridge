@@ -3,6 +3,7 @@ package com.chiou.javabridge;
 import com.chiou.javabridge.Handlers.ResourcePackHandler;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
+import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.fabricmc.fabric.api.resource.ResourcePackActivationType;
 import net.fabricmc.fabric.impl.resource.loader.ModNioResourcePack;
 import net.fabricmc.loader.api.FabricLoader;
@@ -55,18 +56,11 @@ public class JavaBridgeClient implements ClientModInitializer {
 
 			ModNioResourcePack resourcePack = ResourcePackHandler.CreatePack(id.getNamespace(), modContainer, dynamicPath, ResourceType.CLIENT_RESOURCES, ResourcePackActivationType.ALWAYS_ENABLED, modBundled);
 
-			ModNioResourcePack dataPack = ResourcePackHandler.CreatePack(id.getNamespace(), modContainer, dynamicPath, ResourceType.SERVER_DATA, ResourcePackActivationType.ALWAYS_ENABLED, modBundled);
-
 			String packId = id.getNamespace();
 			_newProviders = new ArrayList<>();
 
 			if (resourcePack != null)
 				_newProviders.add(ResourcePackHandler.CreateResourcePackProvider(resourcePack, packId, displayName, modContainer, ResourceType.CLIENT_RESOURCES));
-			else
-				JavaBridge.LOGGER.info("Could not create data pack for client.");
-
-			if (dataPack != null)
-				_newProviders.add(ResourcePackHandler.CreateResourcePackProvider(dataPack, packId + "_data", Text.literal("Dynamic Data Pack"), modContainer, ResourceType.SERVER_DATA));
 			else
 				JavaBridge.LOGGER.info("Could not create data pack for client.");
 
@@ -87,6 +81,7 @@ public class JavaBridgeClient implements ClientModInitializer {
 			providers.addAll(_newProviders);
 
 			client.getResourcePackManager().enable("java-bridge");
+			client.getResourcePackManager().enable("java-bridge_data");
 			client.reloadResources().thenRun(() -> {
 				JavaBridge.LOGGER.info("Dynamic resource pack was loaded in.");
 			});
