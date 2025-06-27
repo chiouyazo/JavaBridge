@@ -1,5 +1,6 @@
-package com.chiou.javabridge;
+package com.chiou.javabridge.Handlers;
 
+import com.chiou.javabridge.JavaBridge;
 import net.fabricmc.fabric.api.resource.ResourcePackActivationType;
 import net.fabricmc.fabric.impl.resource.loader.ModNioResourcePack;
 import net.fabricmc.fabric.impl.resource.loader.ModResourcePackCreator;

@@ -1,5 +1,6 @@
-package com.chiou.javabridge;
+package com.chiou.javabridge.Handlers;
 
+import com.chiou.javabridge.*;
 import com.chiou.javabridge.Models.CommandNode;
 import com.chiou.javabridge.Models.SuggestionProviderBase;
 import net.minecraft.server.command.ServerCommandSource;

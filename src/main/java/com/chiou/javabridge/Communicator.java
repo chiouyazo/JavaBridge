@@ -1,5 +1,8 @@
 package com.chiou.javabridge;
 
+import com.chiou.javabridge.Handlers.ServerBlockHandler;
+import com.chiou.javabridge.Handlers.ServerCommandHandler;
+import com.chiou.javabridge.Handlers.ServerItemHandler;
 import com.chiou.javabridge.Models.ClientContext;
 import com.chiou.javabridge.Models.IClientMessageHandler;
 import org.apache.commons.io.FileUtils;
@@ -27,8 +30,8 @@ public class Communicator {
     public final List<String> LoadedMods = new ArrayList<>();
     private final List<Process> launchedModProcesses = Collections.synchronizedList(new ArrayList<>());
 
-    protected final Map<String, String> PendingResponses = new ConcurrentHashMap<>();
-    protected final Object ResponseLock = new Object();
+    public final Map<String, String> PendingResponses = new ConcurrentHashMap<>();
+    public final Object ResponseLock = new Object();
     private Path _dynamicPack;
     public Runnable FinalizedModLoadingTextureCallback;
 
@@ -39,6 +42,7 @@ public class Communicator {
 
     private ServerCommandHandler _commandHandler;
     public ServerItemHandler _itemHandler;
+    public ServerBlockHandler _blockHandler;
 
     private Consumer<Path> _onNewModEvent;
 
@@ -73,6 +77,7 @@ public class Communicator {
 
             _commandHandler = new ServerCommandHandler(this);
             _itemHandler = new ServerItemHandler(this);
+            _blockHandler = new ServerBlockHandler(this);
 
             new Thread(this::acceptClientsLoop).start();
 
@@ -188,6 +193,7 @@ public class Communicator {
         switch (handler) {
             case "COMMAND" -> _commandHandler.HandleRequest(clientId, guid, platform, event, payload);
             case "ITEM" -> _itemHandler.HandleRequest(clientId, guid, platform, event, payload);
+            case "BLOCK" -> _blockHandler.HandleRequest(clientId, guid, platform, event, payload);
 
             case "SERVER" -> {
                 if (event.equals("HELLO")) {
@@ -217,7 +223,7 @@ public class Communicator {
             _logger.info("New mod client connected: " + clientId);
             _clients.put(clientId, new ClientContext(clientId, socket, reader, writer));
 
-            SendToHost(clientId, "SERVER:SERVER:HELLO:" + clientId);
+            SendToHost(clientId, UUID.randomUUID() + ":SERVER:SERVER:HELLO:" + clientId);
 
             String line;
             while ((line = reader.readLine()) != null) {
