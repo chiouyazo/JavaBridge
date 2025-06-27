@@ -2,6 +2,7 @@ package com.chiou.javabridge.Handlers;
 
 import com.chiou.javabridge.Communicator;
 import com.chiou.javabridge.JavaBridge;
+import com.chiou.javabridge.Models.Communication.MessageBase;
 import com.chiou.javabridge.Models.EventHandler;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
@@ -58,16 +59,16 @@ public class ServerItemHandler extends EventHandler {
         }
     }
 
-    public void HandleRequest(String clientId, String guid, String platform, String event, String payload) {
-        switch (event) {
-            case "REGISTER_ITEM" -> RegisterItem(clientId, guid, payload);
+    public void HandleRequest(String clientId, MessageBase message) {
+        switch (message.Event) {
+            case "REGISTER_ITEM" -> RegisterItem(clientId, message);
 
-            default -> _logger.info("Unknown event: " + event);
+            default -> _logger.info("Unknown event: " + message.Event);
         }
     }
 
-    private void RegisterItem(String clientId, String guid, String payload) {
-        String[] split = payload.split("\\|", 2);
+    private void RegisterItem(String clientId, MessageBase message) {
+        String[] split = message.GetPayload().split("\\|", 2);
         String itemDefinition = split.length > 0 ? split[0] : "";
         String newPayload = split.length > 1 ? split[1] : "";
 
@@ -75,7 +76,7 @@ public class ServerItemHandler extends EventHandler {
 
         Boolean result = register(itemDefinition, Item::new, new Item.Settings(), itemGroup);
 
-        _communicator.SendToHost(clientId, AssembleMessage(guid, "ITEM_REGISTERED", result.toString()));
+        _communicator.SendToHost(clientId, AssembleMessage(message.Id, "ITEM_REGISTERED", result.toString()));
     }
 
     private RegistryKey<ItemGroup> ParseItemGroup(String newPayload) {

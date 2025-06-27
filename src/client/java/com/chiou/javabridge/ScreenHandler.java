@@ -1,5 +1,6 @@
 package com.chiou.javabridge;
 
+import com.chiou.javabridge.Models.Communication.MessageBase;
 import com.chiou.javabridge.Models.EventHandler;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
@@ -28,17 +29,17 @@ public class ScreenHandler extends EventHandler {
         _communicator = communicator;
     }
 
-    public void HandleRequest(String clientId, String guid, String platform, String event, String payload) throws IOException {
-        switch (event) {
-            case "CURRENTSCREEN" -> handleCurrentScreen(clientId, guid);
-            case "OVERWRITESCREEN" -> handleOverwriteScreen(clientId, guid, payload);
-            case "REPLACESCREEN" -> handleReplaceScreen(clientId, guid, payload);
-            case "REPLACEWITHEXISTING" -> handleReplaceWithExisting(clientId, guid, payload);
-            case "CLOSESCREEN" -> handleCloseScreen(clientId, guid);
-            case "DELETESCREEN" -> handleDeleteScreen(clientId, guid, payload);
-            case "LISTSCREENS" -> handleListScreens(clientId, guid);
+    public void HandleRequest(String clientId, MessageBase message) throws IOException {
+        switch (message.Event) {
+            case "CURRENTSCREEN" -> handleCurrentScreen(clientId, message.Id);
+            case "OVERWRITESCREEN" -> handleOverwriteScreen(clientId, message);
+            case "REPLACESCREEN" -> handleReplaceScreen(clientId, message);
+            case "REPLACEWITHEXISTING" -> handleReplaceWithExisting(clientId, message);
+            case "CLOSESCREEN" -> handleCloseScreen(clientId, message.Id);
+            case "DELETESCREEN" -> handleDeleteScreen(clientId, message);
+            case "LISTSCREENS" -> handleListScreens(clientId, message.Id);
 
-            default -> _logger.info("Unknown event: " + event);
+            default -> _logger.info("Unknown event: " + message.Event);
         }
     }
 
@@ -50,36 +51,36 @@ public class ScreenHandler extends EventHandler {
     }
 
     /// New screen to overwrite current (or none at all) // SCREENID:SCREENINFOS
-    private void handleOverwriteScreen(String clientId, String guid, String payload) throws IOException {
+    private void handleOverwriteScreen(String clientId, MessageBase message) throws IOException {
         if (_currentScreen != null) {
             _screenGuidMap.remove(_currentScreen);
         }
 
-        CustomScreen newScreen = new CustomScreen(Text.literal("Meow " + guid), payload);
-        _screenGuidMap.put(guid, newScreen);
-        _currentScreen = guid;
+        CustomScreen newScreen = new CustomScreen(Text.literal("Meow " + message.Id), message.GetPayload());
+        _screenGuidMap.put(message.Id, newScreen);
+        _currentScreen = message.Id;
         MinecraftClient.getInstance().execute(() -> MinecraftClient.getInstance().setScreen(newScreen));
 
-        _communicator.SendToHost(clientId, AssembleMessage(guid, "OVERWRITESCREEN", payload));
+        _communicator.SendToHost(clientId, AssembleMessage(message.Id, "OVERWRITESCREEN", message.GetPayload()));
     }
 
     /// Replace current // SCREENID:SCREENINFOS
-    private void handleReplaceScreen(String clientId, String guid, String payload) throws IOException {
-        CustomScreen newScreen = new CustomScreen(Text.literal("Meow " + guid), payload);
-        _screenGuidMap.put(guid, newScreen);
-        _currentScreen = guid;
+    private void handleReplaceScreen(String clientId, MessageBase message) throws IOException {
+        CustomScreen newScreen = new CustomScreen(Text.literal("Meow " + message.Id), message.GetPayload());
+        _screenGuidMap.put(message.Id, newScreen);
+        _currentScreen = message.Id;
         MinecraftClient.getInstance().execute(() -> MinecraftClient.getInstance().setScreen(newScreen));
 
-        _communicator.SendToHost(clientId, AssembleMessage(guid, "REPLACESCREEN", payload));
+        _communicator.SendToHost(clientId, AssembleMessage(message.Id, "REPLACESCREEN", message.GetPayload()));
     }
 
     // Replace current with already existing (doesnt delete either) // INTERACTIONID:OLDSCREENID (OLDSCREENID = the one that should show up again)
-    private void handleReplaceWithExisting(String clientId, String guid, String payload) throws IOException {
-        Screen newScreen = _screenGuidMap.get(payload);
-        _currentScreen = payload;
+    private void handleReplaceWithExisting(String clientId, MessageBase message) throws IOException {
+        Screen newScreen = _screenGuidMap.get(message.GetPayload());
+        _currentScreen = message.GetPayload();
         MinecraftClient.getInstance().execute(() -> MinecraftClient.getInstance().setScreen(newScreen));
 
-        _communicator.SendToHost(clientId, AssembleMessage(guid, "REPLACEWITHEXISTING", payload));
+        _communicator.SendToHost(clientId, AssembleMessage(message.Id, "REPLACEWITHEXISTING", message.GetPayload()));
     }
 
     // INTERACTIONID
@@ -91,14 +92,14 @@ public class ScreenHandler extends EventHandler {
     }
 
     // INTERACTIONID:SCREENTODELETE
-    private void handleDeleteScreen(String clientId, String guid, String payload) throws IOException {
-        if(payload.equals(_currentScreen)) {
+    private void handleDeleteScreen(String clientId, MessageBase message) throws IOException {
+        if(message.GetPayload().equals(_currentScreen)) {
             _currentScreen = null;
             MinecraftClient.getInstance().execute(() -> MinecraftClient.getInstance().setScreen(null));
         }
 
-        _screenGuidMap.remove(payload);
-        _communicator.SendToHost(clientId, AssembleMessage(guid, "DELETESCREEN", payload));
+        _screenGuidMap.remove(message.GetPayload());
+        _communicator.SendToHost(clientId, AssembleMessage(message.Id, "DELETESCREEN", message.GetPayload()));
     }
 
     private void handleListScreens(String clientId, String guid) throws IOException {

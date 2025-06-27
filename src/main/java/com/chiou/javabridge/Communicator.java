@@ -5,6 +5,9 @@ import com.chiou.javabridge.Handlers.ServerCommandHandler;
 import com.chiou.javabridge.Handlers.ServerItemHandler;
 import com.chiou.javabridge.Models.ClientContext;
 import com.chiou.javabridge.Models.IClientMessageHandler;
+import com.chiou.javabridge.Models.Communication.MessageBase;
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 
@@ -169,38 +172,28 @@ public class Communicator {
     }
 
     private void handleIncoming(String clientId, String line) throws IOException {
-        String[] parts = line.split(":", 5);
-        if (parts.length < 5) {
-            System.err.println("Invalid message: " + line);
-            return;
-        }
+        Gson gson = new Gson();
+        MessageBase message = gson.fromJson(line, MessageBase.class);
 
-        String guid = parts[0];
-        String platform = parts[1];
-        String handler = parts[2];
-        String event = parts[3];
-        String payload = parts[4];
-
-        if (platform.equalsIgnoreCase("CLIENT")) {
+        if (message.Platform.equalsIgnoreCase("CLIENT")) {
             if (_clientHandler != null) {
-                _clientHandler.handleClientMessage(clientId, guid, platform, handler, event, payload);
+                _clientHandler.handleClientMessage(clientId, message);
             } else {
                 _logger.warn("Received CLIENT message but no client handler is registered");
             }
             return;
         }
-
-        switch (handler) {
-            case "COMMAND" -> _commandHandler.HandleRequest(clientId, guid, platform, event, payload);
-            case "ITEM" -> _itemHandler.HandleRequest(clientId, guid, platform, event, payload);
-            case "BLOCK" -> _blockHandler.HandleRequest(clientId, guid, platform, event, payload);
+        switch (message.Handler) {
+            case "COMMAND" -> _commandHandler.HandleRequest(clientId, message);
+            case "ITEM" -> _itemHandler.HandleRequest(clientId, message);
+            case "BLOCK" -> _blockHandler.HandleRequest(clientId, message);
 
             case "SERVER" -> {
-                if (event.equals("HELLO")) {
-                    handleNewMod(clientId, guid, payload);
+                if (message.Event.equals("HELLO")) {
+                    handleNewMod(clientId, message.Id, message.GetPayload());
                 }
             }
-            default -> _logger.info("Unknown handler: " + handler);
+            default -> _logger.info("Unknown handler: " + message.Handler);
         }
     }
 
@@ -223,7 +216,14 @@ public class Communicator {
             _logger.info("New mod client connected: " + clientId);
             _clients.put(clientId, new ClientContext(clientId, socket, reader, writer));
 
-            SendToHost(clientId, UUID.randomUUID() + ":SERVER:SERVER:HELLO:" + clientId);
+            MessageBase message = new MessageBase();
+            message.Id = UUID.randomUUID().toString();
+            message.Event = "HELLO";
+            message.Handler = "SERVER";
+            message.Platform = "SERVER";
+            message.Payload = JavaBridge.Gson.toJsonTree(clientId);
+
+            SendToHost(clientId, message);
 
             String line;
             while ((line = reader.readLine()) != null) {
@@ -239,7 +239,7 @@ public class Communicator {
         }
     }
 
-    public void SendToHost(String clientId, String message) {
+    public void SendToHost(String clientId, MessageBase message) {
         if(clientId == null) {
             _logger.error("Could not send message to mod because clientId was null: " + message);
         }
@@ -247,7 +247,8 @@ public class Communicator {
         if (ctx != null) {
             try {
                 synchronized (ctx.Writer) {
-                    ctx.Writer.write(message);
+                    String json = JavaBridge.Gson.toJson(message);
+                    ctx.Writer.write(json);
                     ctx.Writer.newLine();
                     ctx.Writer.flush();
                 }
@@ -270,12 +271,14 @@ public class Communicator {
 
         // TODO: Filter out mods that failed to laod
         LoadedModsCount = 0;
+        LoadedMods.clear();
         try (DirectoryStream<Path> topLevel = Files.newDirectoryStream(modsFolder)) {
             for (Path path : topLevel) {
                 if (Files.isRegularFile(path) && path.getFileName().toString().equals("bridgeStartup")) {
                     // Run from mods folder
                     launchBridgeStartup(path, modsFolder, port);
                     LoadedModsCount++;
+                    LoadedMods.add(path.getFileName().toString().replace(".bridgeStartup", ""));
                 } else if (Files.isDirectory(path)) {
                     // Search for any file ending with .bridgeStartup inside the subfolder (only one level deep)
                     try (var stream = Files.list(path)) {
@@ -283,6 +286,7 @@ public class Communicator {
                             if (Files.isRegularFile(subFile) && subFile.getFileName().toString().endsWith(".bridgeStartup")) {
                                 launchBridgeStartup(subFile, path, port);
                                 LoadedModsCount++;
+                                LoadedMods.add(path.getFileName().toString().replace(".bridgeStartup", ""));
                                 break;
                             }
                         }

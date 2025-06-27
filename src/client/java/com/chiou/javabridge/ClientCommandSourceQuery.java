@@ -1,6 +1,7 @@
 package com.chiou.javabridge;
 
 import com.chiou.javabridge.Models.CommandSourceQuery;
+import com.chiou.javabridge.Models.Communication.MessageBase;
 import com.chiou.javabridge.Models.EventHandler;
 import com.chiou.javabridge.Models.ICommandSourceQuery;
 import com.chiou.javabridge.Models.ClientPlayerMap;
@@ -28,12 +29,12 @@ public class ClientCommandSourceQuery extends EventHandler implements ICommandSo
 
     @Override
     public void HandleQuery(CommandSourceQuery commandQuery) {
-        String[] split = commandQuery.Payload.split(":", 3);
+        String[] split = commandQuery.Payload.toString().split(":", 3);
         String query = split.length > 1 ? split[1] : commandQuery.Payload;
         // TODO: Validate that this is the correct required type inside (e.g. int)
         String additionalQuery = split.length > 1 ? split[1] : "";
 
-        Object source = commandQuery.PendingSuggestions.get(commandQuery.ContextId);
+        Object source = commandQuery.PendingSuggestions.get(commandQuery.Payload);
 
         String finalValue = ResolveQuery(split[0], query, additionalQuery, source);
 
@@ -41,12 +42,12 @@ public class ClientCommandSourceQuery extends EventHandler implements ICommandSo
     }
 
     @Override
-    public void HandleQuery(String clientId, String guid, String payload, Map<String, Object> pendingCommands) {
-        String[] split = payload.split(":", 2);
+    public void HandleQuery(String clientId, MessageBase message, Map<String, Object> pendingCommands) {
+        String[] split = message.GetPayload().split(":", 2);
         String contextId = split.length > 0 ? split[0] : "";
 
         // contextId could be commandId or suggestionContextId
-        HandleQuery(new CommandSourceQuery(guid, clientId, "", contextId, payload, pendingCommands));
+        HandleQuery(new CommandSourceQuery(message.Id, clientId, "", contextId, message.GetPayload(), pendingCommands));
     }
 
     public String ResolveQuery(String commandName, String query, String additionalQuery, Object source) {

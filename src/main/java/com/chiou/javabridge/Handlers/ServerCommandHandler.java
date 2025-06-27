@@ -2,6 +2,7 @@ package com.chiou.javabridge.Handlers;
 
 import com.chiou.javabridge.*;
 import com.chiou.javabridge.Models.CommandNode;
+import com.chiou.javabridge.Models.Communication.MessageBase;
 import com.chiou.javabridge.Models.SuggestionProviderBase;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.Text;
@@ -41,7 +42,7 @@ public class ServerCommandHandler extends com.chiou.javabridge.Models.CommandHan
 
         _registrar = new DynamicCommandRegistrar(new ServerCommandRegistrarProxy(this, _communicator,
                 (guid, commandName, payload) ->
-                _communicator.SendToHost(_commandToClientGuid.get(commandName), guid + ":" + GetPlatform() + ":COMMAND:COMMAND_EXECUTED:" + commandName + "|" + payload),
+                _communicator.SendToHost(_commandToClientGuid.get(commandName), AssembleMessage(guid, "COMMAND_EXECUTED", commandName + "|" + payload)),
 
                 _sourceQuery::HandleQuery));
     }
@@ -56,39 +57,39 @@ public class ServerCommandHandler extends com.chiou.javabridge.Models.CommandHan
         PendingCommands.put(guid, (ServerCommandSource) source);
     }
 
-    public void HandleRequest(String clientId, String guid, String platform, String event, String payload) throws IOException {
-        switch (event) {
-            case "REGISTER_COMMAND" -> handleRegisterCommand(clientId, guid, payload);
-            case "EXECUTE_COMMAND" -> handleExecuteCommand(clientId, guid, payload);
-            case "COMMAND_FEEDBACK" -> handleCommandFeedback(clientId, guid, payload);
-            case "COMMAND_FINALIZE" -> handleCommandFinalize(clientId, guid, payload);
+    public void HandleRequest(String clientId, MessageBase message) throws IOException {
+        switch (message.Event) {
+            case "REGISTER_COMMAND" -> handleRegisterCommand(clientId, message);
+            case "EXECUTE_COMMAND" -> handleExecuteCommand(clientId, message);
+            case "COMMAND_FEEDBACK" -> handleCommandFeedback(clientId, message);
+            case "COMMAND_FINALIZE" -> handleCommandFinalize(clientId, message);
             case "COMMAND_REQUIREMENT_RESPONSE", "SUGGESTION_RESPONSE" -> {
-                _communicator.PendingResponses.put(guid, payload);
+                _communicator.PendingResponses.put(message.Id, message.GetPayload());
                 synchronized (_communicator.ResponseLock) {
                     _communicator.ResponseLock.notifyAll();
                 }
             }
-            case "SUGGESTION_FINALIZE" -> handleSuggestionFinalize(clientId, guid, payload);
+            case "SUGGESTION_FINALIZE" -> handleSuggestionFinalize(clientId, message);
 
-            case "QUERY_COMMAND_SOURCE" -> handleCommandSourceQuery(clientId, guid, payload);
-            case "QUERY_SUGGESTION_SOURCE" -> handleSuggestionSourceQuery(clientId, guid, payload);
+            case "QUERY_COMMAND_SOURCE" -> handleCommandSourceQuery(clientId, message);
+            case "QUERY_SUGGESTION_SOURCE" -> handleSuggestionSourceQuery(clientId, message);
 
-            default -> _logger.info("Unknown event: " + event);
+            default -> _logger.info("Unknown event: " + message.Event);
         }
     }
 
-    private void handleRegisterCommand(String clientId, String guid, String commandDef) {
-        String commandName = commandDef.split("\\|")[0];
+    private void handleRegisterCommand(String clientId, MessageBase message) {
+        String commandName = message.GetPayload().split("\\|")[0];
 
-        CommandNode commandNode = _registrar.ParseCommandNode(commandDef, _requirementChecker);
+        CommandNode commandNode = _registrar.ParseCommandNode(message.GetPayload(), _requirementChecker);
 
-        _commandGuidMap.put(commandName, guid);
+        _commandGuidMap.put(commandName, message.Id);
         _commandToClientGuid.put(commandName, clientId);
         MapCommandsClient(commandNode.subCommands, clientId, commandName);
 
-        _registrar.registerCommand(clientId, commandDef, _requirementChecker);
+        _registrar.registerCommand(clientId, message.GetPayload(), _requirementChecker);
 
-        _communicator.SendToHost(clientId, AssembleMessage(guid, "COMMAND_REGISTERED", commandDef));
+        _communicator.SendToHost(clientId, AssembleMessage(message.Id, "COMMAND_REGISTERED", message.GetPayload()));
     }
 
     private void MapCommandsClient(List<CommandNode> subCommands, String clientId, String parentPath) {
@@ -101,25 +102,25 @@ public class ServerCommandHandler extends com.chiou.javabridge.Models.CommandHan
         }
     }
 
-    private void handleExecuteCommand(String clientId, String guid, String command) {
+    private void handleExecuteCommand(String clientId, MessageBase message) {
         if (JavaBridge.Server == null) {
-            _communicator.SendToHost(clientId, AssembleMessage(guid, "COMMAND_RESULT", "Server not available"));
+            _communicator.SendToHost(clientId, AssembleMessage(message.Id, "COMMAND_RESULT", "Server not available"));
             return;
         }
 
         JavaBridge.Server.execute(() -> {
             try {
                 ServerCommandSource source = JavaBridge.Server.getCommandSource();
-                JavaBridge.Server.getCommandManager().executeWithPrefix(source, command);
-                _communicator.SendToHost(clientId, AssembleMessage(guid, "COMMAND_RESULT", "Success"));
+                JavaBridge.Server.getCommandManager().executeWithPrefix(source, message.GetPayload());
+                _communicator.SendToHost(clientId, AssembleMessage(message.Id, "COMMAND_RESULT", "Success"));
             } catch (Exception e) {
-                _communicator.SendToHost(clientId, AssembleMessage(guid, "COMMAND_RESULT", "Error:" + e.getMessage()));
+                _communicator.SendToHost(clientId, AssembleMessage(message.Id, "COMMAND_RESULT", "Error:" + e.getMessage()));
             }
         });
     }
 
-    private void handleCommandFeedback(String clientId, String guid, String payload) throws IOException {
-        String[] split = payload.split(":", 2);
+    private void handleCommandFeedback(String clientId, MessageBase messageBase) throws IOException {
+        String[] split = messageBase.GetPayload().split(":", 2);
         String message = split[1];
         String commandId = split[0];
 
@@ -127,22 +128,22 @@ public class ServerCommandHandler extends com.chiou.javabridge.Models.CommandHan
         if (source != null) {
             source.sendFeedback(() -> Text.literal(message), false);
 
-            _communicator.SendToHost(clientId, AssembleMessage(guid, "COMMAND_FEEDBACK", commandId + ":OK"));
+            _communicator.SendToHost(clientId, AssembleMessage(messageBase.Id, "COMMAND_FEEDBACK", commandId + ":OK"));
         } else {
             _logger.warn("No pending command context for guid: " + commandId);
-            _communicator.SendToHost(clientId, AssembleMessage(guid, "COMMAND_FEEDBACK", commandId + ":Error"));
+            _communicator.SendToHost(clientId, AssembleMessage(messageBase.Id, "COMMAND_FEEDBACK", commandId + ":Error"));
         }
     }
 
-    private void handleCommandFinalize(String clientId, String guid, String commandId) throws IOException {
-        PendingCommands.remove(commandId);
-        _communicator.SendToHost(clientId, AssembleMessage(guid, "COMMAND_FINALIZE", commandId + ":OK"));
+    private void handleCommandFinalize(String clientId, MessageBase message) throws IOException {
+        PendingCommands.remove(message.GetPayload());
+        _communicator.SendToHost(clientId, AssembleMessage(message.Id, "COMMAND_FINALIZE", message.GetPayload() + ":OK"));
     }
 
-    private void handleSuggestionFinalize(String clientId, String guid, String payload) throws IOException {
-        String[] parts = payload.split(":", 2);
+    private void handleSuggestionFinalize(String clientId, MessageBase message) throws IOException {
+        String[] parts = message.GetPayload().split(":", 2);
         if (parts.length < 2) {
-            _logger.warn("Invalid SUGGESTION_SOURCE payload: {}", payload);
+            _logger.warn("Invalid SUGGESTION_SOURCE payload: {}", message.GetPayload());
             return;
         }
 
@@ -155,18 +156,18 @@ public class ServerCommandHandler extends com.chiou.javabridge.Models.CommandHan
             return;
         }
 
-        provider.FinalizeSuggestion(guid);
-        _communicator.SendToHost(clientId, AssembleMessage(guid, "SUGGESTION_FINALIZE", providerId + ":OK"));
+        provider.FinalizeSuggestion(message.Id);
+        _communicator.SendToHost(clientId, AssembleMessage(message.Id, "SUGGESTION_FINALIZE", providerId + ":OK"));
     }
 
-    private void handleCommandSourceQuery(String clientId, String guid, String payload) {
-        _sourceQuery.HandleQuery(clientId, guid, payload, PendingCommands);
+    private void handleCommandSourceQuery(String clientId, MessageBase message) {
+        _sourceQuery.HandleQuery(clientId, message, PendingCommands);
     }
 
-    private void handleSuggestionSourceQuery(String clientId, String guid, String payload) {
-        String[] parts = payload.split(":", 3);
+    private void handleSuggestionSourceQuery(String clientId, MessageBase message) {
+        String[] parts = message.GetPayload().split(":", 3);
         if (parts.length < 3) {
-            _logger.warn("Invalid SUGGESTION_SOURCE payload: {}", payload);
+            _logger.warn("Invalid SUGGESTION_SOURCE payload: {}", message.GetPayload());
             return;
         }
 
@@ -181,6 +182,6 @@ public class ServerCommandHandler extends com.chiou.javabridge.Models.CommandHan
             return;
         }
 
-        provider.HandleQuery(guid, contextId, queryPayload);
+        provider.HandleQuery(message.Id, contextId, queryPayload);
     }
 }

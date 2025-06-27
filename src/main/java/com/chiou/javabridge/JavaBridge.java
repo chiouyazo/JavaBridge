@@ -1,6 +1,7 @@
 package com.chiou.javabridge;
 
 import com.chiou.javabridge.Handlers.ResourcePackHandler;
+import com.google.gson.Gson;
 import net.fabricmc.api.ModInitializer;
 
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
@@ -25,6 +26,7 @@ import java.util.Set;
 
 public class JavaBridge implements ModInitializer {
 	public static final String MOD_ID = "java-bridge";
+	public static final Gson Gson = new Gson();
 
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 	public static JavaBridge INSTANCE;
@@ -100,7 +102,7 @@ public class JavaBridge implements ModInitializer {
 	private void registerListModsCommand() {
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
 			dispatcher.register(CommandManager.literal("bridgemods").executes(context -> {
-            context.getSource().sendFeedback(() -> Text.literal("[" + Communicator.LoadedModsCount + "]" + String.join(",", Communicator.LoadedMods)), false);
+            context.getSource().sendFeedback(() -> Text.literal("[" + Communicator.LoadedModsCount + "] " + String.join(", ", Communicator.LoadedMods)), false);
             return 1;
         })));
 	}

@@ -1,6 +1,7 @@
 package com.chiou.javabridge;
 
 import com.chiou.javabridge.Models.IClientMessageHandler;
+import com.chiou.javabridge.Models.Communication.MessageBase;
 import org.slf4j.Logger;
 
 import java.io.IOException;
@@ -20,14 +21,14 @@ public class ClientBridgeHandler implements IClientMessageHandler {
         _screenHandler = new ScreenHandler(_communicator);
     }
 
-    public void handleClientMessage(String clientId, String guid, String platform, String handler, String event, String payload) throws IOException {
+    public void handleClientMessage(String clientId, MessageBase message) throws IOException {
         // TODO: Add logic like opening a screen here
-        switch (handler) {
-            case "COMMAND" -> _commandHandler.HandleRequest(clientId, guid, platform, event, payload);
-            case "SCREEN" -> _screenHandler.HandleRequest(clientId, guid, platform, event, payload);
+        switch (message.Handler) {
+            case "COMMAND" -> _commandHandler.HandleRequest(clientId, message);
+            case "SCREEN" -> _screenHandler.HandleRequest(clientId, message);
 
             case "SERVER" -> { }
-            default -> _logger.info("Unknown handler: " + handler);
+            default -> _logger.info("Unknown handler: " + message.Handler);
         }
     }
 }

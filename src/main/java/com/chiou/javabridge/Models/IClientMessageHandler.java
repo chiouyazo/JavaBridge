@@ -1,7 +1,9 @@
 package com.chiou.javabridge.Models;
 
+import com.chiou.javabridge.Models.Communication.MessageBase;
+
 import java.io.IOException;
 
 public interface IClientMessageHandler {
-    void handleClientMessage(String clientId, String guid, String platform, String handler, String event, String payload) throws IOException;
+    void handleClientMessage(String clientId, MessageBase message) throws IOException;
 }

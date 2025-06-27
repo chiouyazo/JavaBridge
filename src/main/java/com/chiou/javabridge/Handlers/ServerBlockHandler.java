@@ -2,6 +2,7 @@ package com.chiou.javabridge.Handlers;
 
 import com.chiou.javabridge.Communicator;
 import com.chiou.javabridge.JavaBridge;
+import com.chiou.javabridge.Models.Communication.MessageBase;
 import com.chiou.javabridge.Models.EventHandler;
 import com.chiou.javabridge.Models.SoundMap;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -71,16 +72,16 @@ public class ServerBlockHandler extends EventHandler {
     }
 
 
-    public void HandleRequest(String clientId, String guid, String platform, String event, String payload) {
-        switch (event) {
-            case "REGISTER_BLOCK" -> RegisterBlock(clientId, guid, payload);
+    public void HandleRequest(String clientId, MessageBase message) {
+        switch (message.Event) {
+            case "REGISTER_BLOCK" -> RegisterBlock(clientId, message);
 
-            default -> _logger.info("Unknown event: " + event);
+            default -> _logger.info("Unknown event: " + message.Event);
         }
     }
 
-    private void RegisterBlock(String clientId, String guid, String payload) {
-        String[] split = payload.split("\\|", 2);
+    private void RegisterBlock(String clientId, MessageBase message) {
+        String[] split = message.GetPayload().split("\\|", 2);
         String itemDefinition = split.length > 0 ? split[0] : "";
         String newPayload = split.length > 1 ? split[1] : "";
 
@@ -92,7 +93,7 @@ public class ServerBlockHandler extends EventHandler {
 
         Boolean result = register(itemDefinition, Block::new, AbstractBlock.Settings.create().sounds(itemSound), shouldRegisterItem, itemGroup);
 
-        _communicator.SendToHost(clientId, AssembleMessage(guid, "BLOCK_REGISTERED", result.toString()));
+        _communicator.SendToHost(clientId, AssembleMessage(message.Id, "BLOCK_REGISTERED", result.toString()));
     }
 
     private RegistryKey<ItemGroup> ParseItemGroup(String newPayload) {

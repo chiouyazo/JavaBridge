@@ -62,12 +62,11 @@ public class JavaBridgeSuggestionProvider extends SuggestionProviderBase impleme
 
         PutPendingSuggestion(requestId, context.getSource());
 
-        String message = AssembleMessage(requestId, "SUGGESTION_REQUEST", providerId + ":" + requestId + ":" + payload);
-        _communicator.SendToHost(clientId, message);
+        _communicator.SendToHost(clientId, AssembleMessage(requestId, "SUGGESTION_REQUEST", providerId + ":" + requestId + ":" + payload));
 
         // Await response asynchronously
         return _communicator.waitForResponseAsync(requestId, 50000).thenApply(suggestions -> {
-            for (String suggestion : suggestions.split(",")) {
+            for (String suggestion : suggestions.toString().split(",")) {
                 builder.suggest(suggestion);
             }
             return builder.build();

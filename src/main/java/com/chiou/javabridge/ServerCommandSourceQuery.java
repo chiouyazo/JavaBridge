@@ -1,6 +1,7 @@
 package com.chiou.javabridge;
 
 import com.chiou.javabridge.Models.CommandSourceQuery;
+import com.chiou.javabridge.Models.Communication.MessageBase;
 import com.chiou.javabridge.Models.EventHandler;
 import com.chiou.javabridge.Models.ICommandSourceQuery;
 import com.chiou.javabridge.Models.ServerPlayerMap;
@@ -41,13 +42,13 @@ public class ServerCommandSourceQuery extends EventHandler implements ICommandSo
     }
 
     @Override
-    public void HandleQuery(String clientId, String guid, String payload, Map<String, Object> pendingCommands) {
-        String[] split = payload.split(":", 2);
+    public void HandleQuery(String clientId, MessageBase message, Map<String, Object> pendingCommands) {
+        String[] split = message.GetPayload().split(":", 2);
         String contextId = split.length > 0 ? split[0] : "";
-        String newPayload = split.length > 1 ? split[1] : payload;
+        String newPayload = split.length > 1 ? split[1] : message.GetPayload();
 
         // contextId could be commandId or suggestionContextId
-        HandleQuery(new CommandSourceQuery(guid, clientId, "", contextId, newPayload, pendingCommands));
+        HandleQuery(new CommandSourceQuery(message.Id, clientId, "", contextId, newPayload, pendingCommands));
     }
 
     public String ResolveQuery(String commandName, String query, String additionalQuery, Object source) {
