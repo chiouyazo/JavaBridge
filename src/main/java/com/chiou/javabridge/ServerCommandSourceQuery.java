@@ -68,6 +68,7 @@ public class ServerCommandSourceQuery extends EventHandler implements ICommandSo
                 case "HASPERMISSIONLEVEL" -> finalValue = String.valueOf(clientSource.hasPermissionLevel(Integer.parseInt(additionalQuery)));
                 case "DISPLAYNAME" -> finalValue = String.valueOf(clientSource.getDisplayName());
                 case "ISSILENT" -> finalValue = String.valueOf(clientSource.isSilent());
+                case "PLAYER_NAMES" -> finalValue = JavaBridge.Gson.toJson(clientSource.getPlayerNames());
             }
 
             if (query.startsWith("SEND_")) {

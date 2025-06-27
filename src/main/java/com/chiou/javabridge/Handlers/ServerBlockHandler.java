@@ -45,22 +45,24 @@ public class ServerBlockHandler extends EventHandler {
 
     public Boolean register(String name, Function<AbstractBlock.Settings, Block> blockFactory, AbstractBlock.Settings settings, boolean shouldRegisterItem, @Nullable RegistryKey<ItemGroup> attachedItemGroup) {
         try {
-//            _isReady.get();
-            RegistryKey<Block> blockKey = RegistryKey.of(RegistryKeys.BLOCK, Identifier.of("java-bridge", name));
+            Identifier id = Identifier.of("java-bridge", name);
+            RegistryKey<Block> blockKey = RegistryKey.of(RegistryKeys.BLOCK, id);
 
             Block block = blockFactory.apply(settings.registryKey(blockKey));
 
+            Registry.register(Registries.BLOCK, blockKey, block);
+
             if (shouldRegisterItem) {
-                RegistryKey<Item> itemKey = RegistryKey.of(RegistryKeys.ITEM, Identifier.of("java-bridge", name));
+                RegistryKey<Item> itemKey = RegistryKey.of(RegistryKeys.ITEM, id);
 
                 BlockItem blockItem = new BlockItem(block, new Item.Settings().registryKey(itemKey));
                 Registry.register(Registries.ITEM, itemKey, blockItem);
             }
 
-            Registry.register(Registries.BLOCK, blockKey, block);
-
             if (attachedItemGroup != null) {
-                ItemGroupEvents.modifyEntriesEvent(attachedItemGroup).register((itemGroup) -> itemGroup.add(block));
+                ItemGroupEvents.modifyEntriesEvent(attachedItemGroup).register((itemGroup) -> {
+                    itemGroup.add(block.asItem());
+                });
             }
 
             return true;

@@ -89,17 +89,6 @@ public class JavaBridgeClient implements ClientModInitializer {
 			client.getResourcePackManager().enable("java-bridge");
 			client.reloadResources().thenRun(() -> {
 				JavaBridge.LOGGER.info("Dynamic resource pack was loaded in.");
-				Set<String> namespaces = client.getResourceManager().getAllNamespaces();
-				JavaBridge.LOGGER.info("Namespaces after reload: " + namespaces);
-
-				// Confirm model exists
-				Map<Identifier, Resource> models = client.getResourceManager()
-						.findResources("models/item", id -> id.getPath().contains("suspicious_substance"));
-				Map<Identifier, Resource> textures = client.getResourceManager()
-						.findResources("textures/item", id -> id.getPath().contains("suspicious_substance"));
-
-				JavaBridge.LOGGER.info("Found models: " + models.keySet());
-				JavaBridge.LOGGER.info("Found textures: " + textures.keySet());
 			});
 
 		} catch (Exception e) {
