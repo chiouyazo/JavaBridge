@@ -9,6 +9,11 @@ It automatically loads in all mods that come with a *.bridgeStartup file in the 
 * C# - [ModHost.CSharp](https://github.com/chiouyazo/ModHost.CSharp)
 
 
+## Getting Started
+The official JavaBridge ModHosts are actively being documented at [javabridge.chiouya.cloud](https://javabridge.chiouya.cloud).
+
+This documentation is a fork of the fabric documentation, changed to use the modhost code examples instead. (But with  the same structure of the fabric docs)
+
 ### Goal
 Reflect every feature in the [fabric docs](https://docs.fabricmc.net/develop)
 
