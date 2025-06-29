@@ -36,7 +36,7 @@ public class ServerCommandRegistrarProxy extends CommandRegistrationProxy {
 
     @Override
     public JavaBridgeSuggestionProvider GetProvider(String providerId) {
-        return _suggestionProviders.get(providerId);
+        return _suggestionProviders.get(providerId.toLowerCase());
     }
 
     @Override

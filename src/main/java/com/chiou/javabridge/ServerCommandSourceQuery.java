@@ -69,17 +69,9 @@ public class ServerCommandSourceQuery extends EventHandler implements ICommandSo
                 case "DISPLAYNAME" -> finalValue = String.valueOf(clientSource.getDisplayName());
                 case "ISSILENT" -> finalValue = String.valueOf(clientSource.isSilent());
                 case "PLAYER_NAMES" -> finalValue = JavaBridge.Gson.toJson(clientSource.getPlayerNames());
-            }
 
-            if (query.startsWith("SEND_")) {
-                HandleSend(clientSource, query, additionalQuery);
-                finalValue = "OK";
+                default -> finalValue = ResolveExtraQuery(clientSource, query, additionalQuery);
             }
-            else if (query.startsWith("PLAYER_")) {
-                return HandlePlayer(clientSource, query, additionalQuery);
-            }
-
-
 
 //            clientSource.getEntity();
 //            clientSource.getEntityAnchor();
@@ -101,6 +93,18 @@ public class ServerCommandSourceQuery extends EventHandler implements ICommandSo
             JavaBridge.LOGGER.warn("No pending command context for command: " + commandName);
             return "Error";
         }
+    }
+
+    private String ResolveExtraQuery(ServerCommandSource clientSource, String query, String additionalQuery) {
+        if (query.startsWith("SEND_")) {
+            HandleSend(clientSource, query, additionalQuery);
+            return "OK";
+        }
+        else if (query.startsWith("PLAYER_")) {
+            return HandlePlayer(clientSource, query, additionalQuery);
+        }
+
+        return "Error";
     }
 
     private String HandlePlayer(ServerCommandSource clientSource, String query, String additionalQuery) {

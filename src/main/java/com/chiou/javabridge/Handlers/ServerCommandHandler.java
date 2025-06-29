@@ -175,7 +175,7 @@ public class ServerCommandHandler extends com.chiou.javabridge.Models.CommandHan
         String contextId = parts[1];
         String queryPayload = parts[2];
 
-        SuggestionProviderBase provider = _registrar.GetProvider(providerId);
+        SuggestionProviderBase provider = _registrar.GetProvider(queryPayload);
 
         if (provider == null) {
             _logger.warn("No suggestion provider found for ID: {}", providerId);
