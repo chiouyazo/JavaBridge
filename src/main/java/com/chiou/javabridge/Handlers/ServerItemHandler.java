@@ -41,7 +41,7 @@ public class ServerItemHandler extends EventHandler {
     public Boolean register(String name, Function<Item.Settings, Item> itemFactory, Item.Settings settings, @Nullable RegistryKey<ItemGroup> attachedItemGroup) {
         try {
 //            _isReady.get();
-            RegistryKey<Item> itemKey = RegistryKey.of(RegistryKeys.ITEM, Identifier.of("java-bridge", name));
+            RegistryKey<Item> itemKey = RegistryKey.of(RegistryKeys.ITEM, Identifier.of(".minecraft", name));
 
             Item item = itemFactory.apply(settings.registryKey(itemKey));
 

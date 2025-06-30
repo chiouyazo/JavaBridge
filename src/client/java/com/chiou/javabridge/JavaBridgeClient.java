@@ -47,7 +47,7 @@ public class JavaBridgeClient implements ClientModInitializer {
 			ModContainer modContainer = FabricLoader.getInstance().getModContainer(JavaBridge.MOD_ID).orElseThrow(() -> new RuntimeException("ModContainer not found!"));
 			String dynamicPath = Path.of(JavaBridge.getResourceFolder().toString(), "javaBridgeDynamicPack").toString();
 
-			Identifier id = Identifier.of("java-bridge", "java-bridge");
+			Identifier id = Identifier.of(".minecraft", "java-bridge");
 			Text displayName = Text.literal(id.getNamespace() + "/" + id.getPath());
 
 			List<Path> paths = modContainer.getRootPaths();

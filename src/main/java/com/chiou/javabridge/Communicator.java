@@ -108,8 +108,8 @@ public class Communicator {
     private void CopyModAssets(Path assetsDir) {
         try {
             // TODO: Merge lang files
-            copyFolder(Path.of(assetsDir.toString(), "assets", "java-bridge"), Path.of(_dynamicPack.toString(), "assets", "java-bridge"));
-            copyFolder(Path.of(assetsDir.toString(), "data", "java-bridge"), Path.of(_dynamicPack.toString(), "data", "java-bridge"));
+            copyFolder(Path.of(assetsDir.toString(), "assets", ".minecraft"), Path.of(_dynamicPack.toString(), "assets", ".minecraft"));
+            copyFolder(Path.of(assetsDir.toString(), "data", ".minecraft"), Path.of(_dynamicPack.toString(), "data", ".minecraft"));
 //            copyFolder(Path.of(assetsDir.toString(), "assets", "minecraft", "blockstates"), Path.of(_dynamicPack.toString(), "assets", "minecraft", "blockstates"));
 //            copyFolder(Path.of(assetsDir.toString(), "assets", "minecraft", "equipment"), Path.of(_dynamicPack.toString(), "assets", "minecraft", "equipment"));
 //            copyFolder(Path.of(assetsDir.toString(), "assets", "minecraft", "font"), Path.of(_dynamicPack.toString(), "assets", "minecraft", "font"));

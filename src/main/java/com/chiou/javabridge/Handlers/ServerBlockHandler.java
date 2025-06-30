@@ -45,7 +45,7 @@ public class ServerBlockHandler extends EventHandler {
 
     public Boolean register(String name, Function<AbstractBlock.Settings, Block> blockFactory, AbstractBlock.Settings settings, boolean shouldRegisterItem, @Nullable RegistryKey<ItemGroup> attachedItemGroup) {
         try {
-            Identifier id = Identifier.of("java-bridge", name);
+            Identifier id = Identifier.of(".minecraft", name);
             RegistryKey<Block> blockKey = RegistryKey.of(RegistryKeys.BLOCK, id);
 
             Block block = blockFactory.apply(settings.registryKey(blockKey));
