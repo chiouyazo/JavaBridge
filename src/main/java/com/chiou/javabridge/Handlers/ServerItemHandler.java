@@ -9,9 +9,10 @@ import com.chiou.javabridge.Models.Communication.MessageBase;
 import com.chiou.javabridge.Models.EventHandler;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
+import net.minecraft.block.jukebox.JukeboxSong;
+import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemGroup;
-import net.minecraft.item.ItemGroups;
 import net.minecraft.item.equipment.ArmorMaterial;
 import net.minecraft.item.equipment.EquipmentAsset;
 import net.minecraft.registry.Registries;
@@ -21,11 +22,11 @@ import net.minecraft.registry.RegistryKeys;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.sound.SoundEvent;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.Rarity;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
@@ -124,7 +125,54 @@ public class ServerItemHandler extends EventHandler {
                 armorPayload.KnockbackResistance,
                 armorPayload.GetRepairIngredient(),
                 assetId);
+        
         Item.Settings itemSettings = new Item.Settings().armor(armorMaterial, armorPayload.GetArmorType());
+
+        itemSettings.maxCount(itemRegistration.MaxCount);
+        itemSettings.maxDamage(itemRegistration.MaxDamage);
+
+        // TODO: Add the onConsume event here for e.g. effects later
+        if (itemRegistration.Food != null)
+            itemSettings.food(itemRegistration.Food.BuildFoodComponent());
+
+        if (itemRegistration.Enchantable)
+            itemSettings.enchantable(1);
+
+        if (itemRegistration.Fireproof)
+            itemSettings.fireproof();
+
+
+        Rarity rarity = itemRegistration.GetRarity();
+        if (rarity != null)
+            itemSettings.rarity(rarity);
+
+        EquipmentSlot equippableSlot = itemRegistration.GetEquippableSlot();
+        if (equippableSlot != null)
+            itemSettings.equippable(equippableSlot);
+
+        EquipmentSlot equippableUnswappableSlot = itemRegistration.GetEquippableUnswappableSlot();
+        if (equippableUnswappableSlot != null)
+            itemSettings.equippableUnswappable(equippableUnswappableSlot);
+
+        RegistryKey<JukeboxSong> jukeboxSong = itemRegistration.GetJukeboxSong();
+        if (jukeboxSong != null)
+            itemSettings.jukeboxPlayable(jukeboxSong);
+
+        Item repairItem = itemRegistration.GetRepairItem();
+        if (repairItem != null)
+            itemSettings.repairable(repairItem);
+
+
+        // tool
+        // pickaxe
+        // axe
+        // hoe
+        // shovel
+        // sword
+        // armor
+        // wolfArmor
+        // horseArmor
+
 
         return register(itemRegistration.ItemDefinition, Item::new, itemSettings, itemGroup);
     }
