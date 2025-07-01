@@ -122,6 +122,7 @@ public class Communicator {
 //            copyFolder(Path.of(assetsDir.toString(), "assets", "minecraft", "shaders"), Path.of(_dynamicPack.toString(), "assets", "minecraft", "shaders"));
 //            copyFolder(Path.of(assetsDir.toString(), "assets", "minecraft", "texts"), Path.of(_dynamicPack.toString(), "assets", "minecraft", "texts"));
 //            copyFolder(Path.of(assetsDir.toString(), "assets", "minecraft", "textures"), Path.of(_dynamicPack.toString(), "assets", "minecraft", "textures"));
+            _itemHandler.BuildBakedItems(assetsDir);
         } catch (IOException e) {
             JavaBridge.LOGGER.error("Could not copy mod assets.", e);
         }

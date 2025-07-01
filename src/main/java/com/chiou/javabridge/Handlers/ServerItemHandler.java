@@ -7,6 +7,7 @@ import com.chiou.javabridge.Models.Communication.Items.ItemRegistration;
 import com.chiou.javabridge.Models.Communication.Items.ItemType;
 import com.chiou.javabridge.Models.Communication.MessageBase;
 import com.chiou.javabridge.Models.EventHandler;
+import com.google.common.reflect.TypeToken;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
 import net.minecraft.block.jukebox.JukeboxSong;
@@ -26,6 +27,11 @@ import net.minecraft.util.Rarity;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
+import java.lang.reflect.Type;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
@@ -82,28 +88,61 @@ public class ServerItemHandler extends EventHandler {
     private void RegisterItem(String clientId, MessageBase message) {
         ItemRegistration itemRegistration = JavaBridge.Gson.fromJson(message.GetPayload(), ItemRegistration.class);
 
+        Boolean result = BuildItem(itemRegistration);
+
+        if (!result)
+            JavaBridge.LOGGER.info("Failed to register item: {}", itemRegistration.ItemDefinition);
+
+        _communicator.SendToHost(clientId, AssembleMessage(message.Id, "ITEM_REGISTERED", result.toString()));
+    }
+
+    public void BuildBakedItems(Path path) {
+        try {
+            Path bakedPath = path.resolve("baked");
+
+            if (!Files.exists(bakedPath))
+                return;
+
+            List<String> failedItems = new ArrayList<>();
+            Path bakedItems = bakedPath.resolve("items.json");
+
+            if (!Files.exists(bakedItems))
+                return;
+
+            List<ItemRegistration> items = new ArrayList<>();
+            Type itemListType = new TypeToken<List<ItemRegistration>>() {}.getType();
+            items = JavaBridge.Gson.<List<ItemRegistration>>fromJson(Files.readString(bakedItems), itemListType);
+
+            if (!items.isEmpty()) {
+                for (ItemRegistration item : items) {
+                    Boolean result = BuildItem(item);
+
+                    if (!result) {
+                        failedItems.add(item.ItemDefinition);
+                        JavaBridge.LOGGER.info("Failed to register baked item: {}", item.ItemDefinition);
+                    }
+                }
+            }
+
+            int successfulRegistrations = items.size() - failedItems.size();
+
+            JavaBridge.LOGGER.info("Registered {} out of {} baked items", successfulRegistrations, items.size());
+
+            if (!failedItems.isEmpty()) {
+                JavaBridge.LOGGER.info("Failed items: {}", String.join(", ", failedItems));
+            }
+        } catch (Exception e) {
+            JavaBridge.LOGGER.error("Failed to build baked items.", e);
+        }
+    }
+
+    public Boolean BuildItem(ItemRegistration itemRegistration) {
         Boolean result = false;
         if (itemRegistration.GetItemType() == ItemType.Armor) {
             result = BuildArmor(itemRegistration);
         }
 
-//        new ArmorMaterial()
-//        settings.armor()
-
-
-//        return Registry.register(Registries.SOUND_EVENT, id, SoundEvent.of(soundId));
-
-//        SoundEvent soundEvent = Registries.SOUND_EVENT.get(Identifier.ofVanilla("entity.allay.death"));
-//
-//        String[] split = message.GetPayload().split("\\|", 2);
-//        String itemDefinition = split.length > 0 ? split[0] : "";
-//        String newPayload = split.length > 1 ? split[1] : "";
-//
-//        RegistryKey<ItemGroup> itemGroup = ParseItemGroup(newPayload);
-//
-//        Boolean result = register(itemDefinition, Item::new, new Item.Settings(), itemGroup);
-
-        _communicator.SendToHost(clientId, AssembleMessage(message.Id, "ITEM_REGISTERED", result.toString()));
+        return result;
     }
 
     private Boolean BuildArmor(ItemRegistration itemRegistration) {
